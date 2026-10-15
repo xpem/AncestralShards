@@ -1,0 +1,17 @@
+:host { display: block; }
+.auth-page {
+  min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+  padding: 1rem; background: radial-gradient(circle at top, #2a2140, #12101c 70%);
+}
+.auth-card {
+  width: 100%; max-width: 380px; padding: 1.75rem 1.5rem; border-radius: 1rem;
+  background: #1c1830; border: 1px solid #3a3258; color: #e9e4f7;
+}
+.auth-brand { font-size: 1.4rem; font-weight: 700; text-align: center; margin-bottom: .25rem; letter-spacing: .03em; }
+.auth-subtitle { text-align: center; color: #a79fc4; margin-bottom: 1.25rem; font-size: .9rem; }
+.form-control { background: #12101c; border-color: #3a3258; color: #e9e4f7; }
+.form-control:focus { background: #12101c; color: #e9e4f7; border-color: #8b6cf0; box-shadow: 0 0 0 .2rem rgba(139,108,240,.25); }
+.form-label { font-size: .85rem; color: #c9c2e4; }
+.btn-auth { width: 100%; background: #8b6cf0; border: 0; color: #fff; font-weight: 600; padding: .65rem; }
+.btn-auth:hover:not(:disabled) { background: #7a59e6; color: #fff; }
+.auth-link { color: #b7a3ff; }

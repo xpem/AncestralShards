@@ -1,0 +1,25 @@
+:host { display: block; }
+
+.sh-page { max-width: 480px; margin: 0 auto; min-height: 100dvh; padding-bottom: 5rem; }
+
+.sh-header {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem; padding: .6rem 1rem; background: rgba(18, 16, 28, .92); backdrop-filter: blur(6px);
+  border-bottom: 1px solid #2c2645;
+}
+.sh-level { font-weight: 700; font-size: 1.05rem; }
+.sh-header > :first-child { flex: 1; }
+
+.sh-icon-btn {
+  background: transparent; border: 1px solid #3a3258; color: #c9c2e4; border-radius: .5rem;
+  width: 40px; height: 40px; display: grid; place-items: center;
+}
+.sh-icon-btn:hover { background: #2a2342; }
+
+.sh-main { display: flex; flex-direction: column; gap: .75rem; padding: .75rem 1rem 0; }
+.sh-loading { padding: 2rem 1rem; text-align: center; color: #a79fc4; }
+
+.sh-summary {
+  margin: 0; padding: .55rem .75rem; border-radius: .6rem; font-size: .85rem;
+  background: #231d3a; border: 1px solid #3a3258; color: #d8d0f2;
+}

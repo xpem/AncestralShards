@@ -1,0 +1,48 @@
+<div class="sh-page">
+  <header class="sh-header">
+    @if (store.player(); as p) {
+      <div>
+        <div class="sh-level">Nível {{ p.level }}</div>
+        <small class="sh-muted">{{ p.experience }} XP · faltam {{ p.experienceToNextLevel }}</small>
+      </div>
+      @if (p.skillPoints > 0) {
+        <span class="sh-tag ok" title="Pontos de habilidade">{{ p.skillPoints }} pt</span>
+      }
+    } @else {
+      <div class="sh-level">Ancestral Shards</div>
+    }
+    <button type="button" class="sh-icon-btn" aria-label="Sair" title="Sair" (click)="auth.expireSession()">
+      <i class="bi bi-box-arrow-right"></i>
+    </button>
+  </header>
+
+  @if (!store.loaded()) {
+    <div class="sh-loading"><span class="spinner-border spinner-border-sm me-2"></span>Carregando...</div>
+  } @else {
+    <main class="sh-main">
+      <app-energy-bar />
+      <app-inventory />
+
+      @if (store.mineSlots(); as ms) {
+        <p class="sh-muted mb-0" title="Minas usadas / espaços de mina">
+          <i class="bi bi-gem"></i> Minas {{ ms.used }}/{{ ms.total }}
+        </p>
+      }
+
+      @for (mine of store.mines(); track mine.mineNumber) {
+        <app-mine-card [mine]="mine" />
+      }
+
+      <app-next-mine />
+
+      @if (store.lastMine()) {
+        <p class="sh-summary" role="status">{{ summary() }}</p>
+      }
+
+      <app-mission-list />
+      <app-skills />
+    </main>
+  }
+
+  <app-toast />
+</div>

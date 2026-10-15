@@ -1,0 +1,64 @@
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-brand">Ancestral Shards</div>
+    <p class="auth-subtitle">Crie sua conta e comece a minerar.</p>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="mb-3">
+        <label for="name" class="form-label">Nome</label>
+        <input id="name" type="text" class="form-control" formControlName="name" autocomplete="name"
+               [class.is-invalid]="submitted() && f.name.errors" />
+        @if (submitted() && f.name.errors) {
+          <div class="invalid-feedback">O nome deve ter de 4 a 150 caracteres.</div>
+        }
+      </div>
+
+      <div class="mb-3">
+        <label for="email" class="form-label">E-mail</label>
+        <input id="email" type="email" class="form-control" formControlName="email" autocomplete="email"
+               [class.is-invalid]="submitted() && f.email.errors" />
+        @if (submitted() && f.email.errors) {
+          <div class="invalid-feedback">Informe um e-mail válido.</div>
+        }
+      </div>
+
+      <div class="mb-3">
+        <label for="password" class="form-label">Senha</label>
+        <div class="input-group has-validation">
+          <input id="password" [type]="showPassword() ? 'text' : 'password'" class="form-control"
+                 formControlName="password" autocomplete="new-password"
+                 [class.is-invalid]="submitted() && f.password.errors" />
+          <button type="button" class="btn btn-outline-secondary" (click)="showPassword.set(!showPassword())"
+                  [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'">
+            <i class="bi" [class.bi-eye]="!showPassword()" [class.bi-eye-slash]="showPassword()"></i>
+          </button>
+          @if (submitted() && f.password.errors) {
+            <div class="invalid-feedback">A senha deve ter de 4 a 30 caracteres.</div>
+          }
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label for="confirmPassword" class="form-label">Confirmar senha</label>
+        <input id="confirmPassword" [type]="showPassword() ? 'text' : 'password'" class="form-control"
+               formControlName="confirmPassword" autocomplete="new-password"
+               [class.is-invalid]="submitted() && (f.confirmPassword.errors || form.errors?.['mustMatch'])" />
+        @if (submitted() && (f.confirmPassword.errors || form.errors?.['mustMatch'])) {
+          <div class="invalid-feedback">As senhas não coincidem.</div>
+        }
+      </div>
+
+      @if (errorMessage()) {
+        <div class="alert alert-danger py-2 small" role="alert">{{ errorMessage() }}</div>
+      }
+
+      <button type="submit" class="btn btn-auth" [disabled]="loading()">
+        @if (loading()) { <span class="spinner-border spinner-border-sm me-2"></span>Criando... } @else { Criar conta }
+      </button>
+
+      <p class="text-center small mt-3 mb-0">
+        Já tem conta? <a routerLink="/user/signin" class="auth-link">Entrar</a>
+      </p>
+    </form>
+  </div>
+</div>
