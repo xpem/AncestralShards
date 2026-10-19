@@ -21,6 +21,9 @@ const MESSAGES: Record<string, string> = {
   InvalidTimes: 'Quantidade inválida (1 a 100).',
   InvalidProduction: 'Tipo de produção inválido.',
   SameProduction: 'A mina já produz este minério.',
+  InvalidGem: 'Gema inválida.',
+  InvalidStage: 'Etapa de lapidação inválida.',
+  WorkshopLocked: 'Libere esta lapidação com a habilidade Oficina.',
   ConcurrencyConflict: 'Tente novamente.',
 };
 

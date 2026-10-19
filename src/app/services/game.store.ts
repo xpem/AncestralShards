@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ClaimMissionResult, CollectCartResult, DistributeSkillResult, MineCartUpgrade, MineState, Mission, MissionType, NextMine,
+  ClaimMissionResult, CollectCartResult, CraftResult, GemType, InventoryItem, ItemStage, WorkshopRecipe, DistributeSkillResult, MineCartUpgrade, MineState, Mission, MissionType, NextMine,
   MineSlots, OreAmount, OreType, Player, ProductionOption, SetProductionResult, ShardsState, Skill, SkillType, UnlockMineResult, UpgradeCartResult,
 } from '../models/shards.model';
 import { ShardsApi } from './shards-api';
@@ -19,6 +19,8 @@ export interface MineView extends MineState {
   /** Instante (relógio do servidor, ms) em que `cartAmount` valia. */
   asOfMs: number;
 }
+
+export type GameTab = 'mines' | 'workshop' | 'progress';
 
 export interface Notice {
   id: number;
@@ -63,6 +65,19 @@ export class GameStore {
   readonly productions = signal<ProductionOption[]>([]);
   readonly mineSlots = signal<MineSlots | null>(null);
   readonly cartUpgrades = signal<MineCartUpgrade[]>([]);
+  readonly workshop = signal<WorkshopRecipe[]>([]);
+  /** Inventário completo (todos os estágios); só muda com o craft, então vem de `GET /inventory`. */
+  readonly fullInventory = signal<InventoryItem[]>([]);
+
+  // ---- Navegação ----
+  readonly tab = signal<GameTab>('mines');
+  /** Pontos de habilidade para gastar ou missões para resgatar. */
+  readonly progressBadge = computed(
+    () => (this.player()?.skillPoints ?? 0) + this.missions().filter((m) => m.status === 'Completed').length,
+  );
+
+  /** Há uma lapidação em andamento (bloqueia só os botões da Oficina; as ações já são serializadas pela fila). */
+  readonly crafting = signal(false);
 
   // ---- Feedback ----
   readonly notice = signal<Notice | null>(null);
@@ -283,6 +298,27 @@ export class GameStore {
     });
   }
 
+  loadFullInventory(): Promise<void> {
+    return this.enqueue(async () => {
+      try {
+        this.fullInventory.set((await firstValueFrom(this.api.inventory())).items);
+      } catch (e) {
+        this.fail(e);
+      }
+    });
+  }
+
+  craft(gem: GemType, stage: Exclude<ItemStage, 'Raw'>, times: number): Promise<CraftResult | null> {
+    this.crafting.set(true);
+    return this.act(async () => {
+      const res = await this.withRetry(() => firstValueFrom(this.api.craft({ gem, stage, times })));
+      this.fullInventory.set(res.inventory.items);
+      await this.fetchState();
+      this.notify('success', `Lapidado: ${res.crafted.quantity}× ${oreLabel(gem)} ${stageLabel(stage).toLowerCase()}.`);
+      return res;
+    }).finally(() => this.crafting.set(false));
+  }
+
   claimMission(missionType: MissionType): Promise<ClaimMissionResult | null> {
     return this.act(async () => {
       const res = await this.withRetry(() => firstValueFrom(this.api.claimMission(missionType)));
@@ -313,6 +349,7 @@ export class GameStore {
     this.productions.set(s.productions);
     this.mineSlots.set(s.mineSlots ?? null);
     this.cartUpgrades.set(s.cartUpgrades ?? []);
+    this.workshop.set(s.workshop ?? []);
     this.loaded.set(true);
   }
 
@@ -383,6 +420,8 @@ export class GameStore {
     this.notice.set({ id: ++this.seq, kind, text });
   }
 }
+
+export const stageLabel = (s: ItemStage): string => ({ Raw: 'Bruto', Polished: 'Polido', Faceted: 'Facetado' })[s];
 
 function sumOres(base: OreAmount[], extra: OreAmount[]): OreAmount[] {
   const out = base.map((o) => ({ ...o }));

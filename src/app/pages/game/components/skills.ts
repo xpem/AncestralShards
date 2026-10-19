@@ -5,6 +5,7 @@ import { GameStore } from '../../../services/game.store';
 const SKILL_INFO: Record<string, { label: string; description: string } | undefined> = {
   DoubleDrop: { label: 'Drop duplo', description: 'Chance de render um minério extra ao minerar.' },
   MineSlots: { label: 'Minas', description: 'Cada ponto libera espaço para mais uma mina.' },
+  Workshop: { label: 'Oficina', description: 'Nível 1 libera polir gemas; nível 2 libera facetar.' },
   CartCapacity: { label: 'Vagonete', description: 'Libera a ampliação do vagonete, até este nível, em cada mina.' },
 };
 

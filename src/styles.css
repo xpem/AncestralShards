@@ -58,3 +58,7 @@ html, body { margin: 0; min-height: 100%; background: #12101c; color: #e9e4f7; }
 .sh-prod-opt:hover:not(:disabled) { border-color: #8b6cf0; }
 .sh-prod-opt.selected { border-color: #8b6cf0; background: #271f46; }
 .sh-prod-opt.current { opacity: .75; }
+
+.sh-craft { padding: .35rem 0; border-top: 1px solid #2c2645; }
+.sh-craft:first-of-type { border-top: 0; }
+.sh-link { background: none; border: 0; padding: 0; color: #b7a3ff; font-size: .78rem; text-decoration: underline; }

@@ -20,28 +20,54 @@
     <div class="sh-loading"><span class="spinner-border spinner-border-sm me-2"></span>Carregando...</div>
   } @else {
     <main class="sh-main">
-      <app-energy-bar />
-      <app-inventory />
+      @switch (store.tab()) {
+        @case ('mines') {
+          <div class="sh-grid sh-top">
+            <app-energy-bar />
+            <app-inventory />
+          </div>
 
-      @if (store.mineSlots(); as ms) {
-        <p class="sh-muted mb-0" title="Minas usadas / espaços de mina">
-          <i class="bi bi-gem"></i> Minas {{ ms.used }}/{{ ms.total }}
-        </p>
+          @if (store.mineSlots(); as ms) {
+            <p class="sh-muted mb-0" title="Minas usadas / espaços de mina">
+              <i class="bi bi-gem"></i> Minas {{ ms.used }}/{{ ms.total }}
+            </p>
+          }
+
+          <div class="sh-grid sh-mines">
+            @for (mine of store.mines(); track mine.mineNumber) {
+              <app-mine-card [mine]="mine" />
+            }
+            <app-next-mine />
+          </div>
+
+          @if (store.lastMine()) {
+            <p class="sh-summary" role="status">{{ summary() }}</p>
+          }
+        }
+        @case ('workshop') {
+          <app-workshop />
+        }
+        @case ('progress') {
+          <div class="sh-grid sh-pair">
+            <app-mission-list />
+            <app-skills />
+          </div>
+        }
       }
-
-      @for (mine of store.mines(); track mine.mineNumber) {
-        <app-mine-card [mine]="mine" />
-      }
-
-      <app-next-mine />
-
-      @if (store.lastMine()) {
-        <p class="sh-summary" role="status">{{ summary() }}</p>
-      }
-
-      <app-mission-list />
-      <app-skills />
     </main>
+
+    <nav class="sh-tabs" aria-label="Seções do jogo">
+      @for (t of tabs; track t.id) {
+        <button type="button" class="sh-tab" [class.active]="store.tab() === t.id"
+                [attr.aria-current]="store.tab() === t.id ? 'page' : null" (click)="store.tab.set(t.id)">
+          <i class="bi" [class]="t.icon"></i>
+          <span>{{ t.label }}</span>
+          @if (t.id === 'progress' && store.progressBadge() > 0) {
+            <span class="sh-badge" [attr.aria-label]="store.progressBadge() + ' pendentes'">{{ store.progressBadge() }}</span>
+          }
+        </button>
+      }
+    </nav>
   }
 
   <app-toast />

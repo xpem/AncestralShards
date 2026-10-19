@@ -1,5 +1,7 @@
 export type OreType = 'Quartz' | 'Ruby' | 'Sapphire' | 'Emerald';
-export type SkillType = 'DoubleDrop' | 'MineSlots' | 'CartCapacity';
+export type SkillType = 'DoubleDrop' | 'MineSlots' | 'CartCapacity' | 'Workshop';
+export type ItemStage = 'Raw' | 'Polished' | 'Faceted';
+export type GemType = Exclude<OreType, 'Quartz'>;
 export type MissionType = 'FirstPickaxe' | 'Specialization' | 'OperationalExpansion' | 'FirstGem';
 export type MissionStatus = 'Active' | 'Completed' | 'Claimed';
 
@@ -26,10 +28,21 @@ export interface MineCartUpgrade { mineNumber: number; cartLevel: number; next: 
 export interface MineSlots { used: number; total: number; }               // total nunca fica abaixo de used
 export interface ProductionOption { focus: OreType; switchCost: OreAmount[]; drops: Drop[]; canAfford: boolean; }
 
+export interface InventoryItem { oreType: OreType; stage: ItemStage; quantity: number; }
+export interface InventoryRes { items: InventoryItem[]; }
+export interface WorkshopGem { oreType: GemType; available: number; canAfford: boolean; }
+export interface WorkshopRecipe {
+  stage: Exclude<ItemStage, 'Raw'>; level: number; inputQuantity: number; cost: OreAmount[];
+  skillAllows: boolean; gems: WorkshopGem[];
+}
+export interface CraftRequest { gem: GemType; stage: Exclude<ItemStage, 'Raw'>; times?: number; }
+export interface CraftResult { crafted: InventoryItem; spent: InventoryItem[]; inventory: InventoryRes; }
+
 export interface ShardsState {
   serverTimeUtc: string; player: Player; skills: Skill[]; inventory: OreAmount[]; mines: MineState[];
   missions: Mission[]; nextMine: NextMine | null; productions: ProductionOption[]; mineSlots: MineSlots;
   cartUpgrades: MineCartUpgrade[];
+  workshop: WorkshopRecipe[];
 }
 export interface MineRequest { times?: number; }                       // body opcional
 export interface MineResult { drops: OreAmount[]; doubleDrops: number; xpGained: number; levelUp: boolean; player: Player; missions: Mission[]; }

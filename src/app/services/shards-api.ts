@@ -3,11 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
-  ClaimMissionResult, CollectCartResult, DistributeSkillRequest, DistributeSkillResult, MineRequest, MineResult,
+  ClaimMissionResult, CollectCartResult, CraftRequest, CraftResult, InventoryRes, DistributeSkillRequest, DistributeSkillResult, MineRequest, MineResult,
   MissionType, OreType, SetProductionRequest, SetProductionResult, ShardsState, SkillType, UnlockMineResult, UpgradeCartResult,
 } from '../models/shards.model';
 
-/** As 8 rotas do jogo (contrato, seção 3). Sem lógica: quem decide o que fazer com a resposta é a store. */
+/** As rotas do jogo (contrato, seção 3). Sem lógica: quem decide o que fazer com a resposta é a store. */
 @Injectable({ providedIn: 'root' })
 export class ShardsApi {
   private http = inject(HttpClient);
@@ -42,6 +42,14 @@ export class ShardsApi {
   distributeSkill(skillType: SkillType): Observable<DistributeSkillResult> {
     const body: DistributeSkillRequest = { skillType };
     return this.http.post<DistributeSkillResult>(`${this.base}/skills/distribute`, body);
+  }
+
+  inventory(): Observable<InventoryRes> {
+    return this.http.get<InventoryRes>(`${this.base}/inventory`);
+  }
+
+  craft(body: CraftRequest): Observable<CraftResult> {
+    return this.http.post<CraftResult>(`${this.base}/workshop/craft`, body);
   }
 
   claimMission(missionType: MissionType): Observable<ClaimMissionResult> {
