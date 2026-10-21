@@ -15,6 +15,7 @@ import { ORE_INFO } from '../../../shared/ore-info';
             <li class="sh-chip">
               <span class="sh-dot" [style.background]="info[item.oreType].color"></span>
               {{ info[item.oreType].label }}
+              <small class="sh-muted">Bruto</small>
               <strong>{{ item.quantity }}</strong>
             </li>
           }

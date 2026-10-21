@@ -1,9 +1,15 @@
 <div class="sh-page">
   <header class="sh-header">
     @if (store.player(); as p) {
-      <div>
+      <span class="sh-level-badge" aria-hidden="true">{{ p.level }}</span>
+      <div class="sh-level-info">
         <div class="sh-level">Nível {{ p.level }}</div>
-        <small class="sh-muted">{{ p.experience }} XP · faltam {{ p.experienceToNextLevel }}</small>
+        <div class="sh-xp">
+          <div class="sh-bar thin sh-xp-bar" role="progressbar" aria-label="Experiência" [attr.aria-valuenow]="xpPercent()" aria-valuemin="0" aria-valuemax="100">
+            <div class="sh-bar-fill energy" [style.width.%]="xpPercent()"></div>
+          </div>
+          <small class="sh-muted">{{ p.experience }} XP · faltam {{ p.experienceToNextLevel }}</small>
+        </div>
       </div>
       @if (p.skillPoints > 0) {
         <span class="sh-tag ok" title="Pontos de habilidade">{{ p.skillPoints }} pt</span>
@@ -29,7 +35,7 @@
 
           @if (store.mineSlots(); as ms) {
             <p class="sh-muted mb-0" title="Minas usadas / espaços de mina">
-              <i class="bi bi-gem"></i> Minas {{ ms.used }}/{{ ms.total }}
+              <i class="bi bi-minecart-loaded"></i> Minas {{ ms.used }}/{{ ms.total }}
             </p>
           }
 

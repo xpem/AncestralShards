@@ -8,8 +8,8 @@ import { formatDuration } from '../../../shared/format';
     @if (player(); as p) {
       <section class="sh-card">
         <div class="sh-row">
-          <span><i class="bi bi-lightning-charge-fill energy-icon"></i> Energia</span>
-          <strong>{{ store.availableEnergy() }}/{{ p.maxEnergy }}</strong>
+          <h2 class="sh-title mb-0"><i class="bi bi-lightning-charge energy-icon me-1"></i>Energia</h2>
+          <strong class="sh-count">{{ store.availableEnergy() }}/{{ p.maxEnergy }}</strong>
         </div>
         <div class="sh-bar" role="progressbar" [attr.aria-valuenow]="store.availableEnergy()" aria-valuemin="0" [attr.aria-valuemax]="p.maxEnergy">
           <div class="sh-bar-fill energy" [style.width.%]="percent()"></div>

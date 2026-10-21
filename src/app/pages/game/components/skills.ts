@@ -13,27 +13,32 @@ const SKILL_INFO: Record<string, { label: string; description: string } | undefi
   selector: 'app-skills',
   template: `
     @if (store.skills().length > 0) {
-      <section class="sh-card" id="habilidades">
-        <div class="sh-row">
+      <section class="sh-card sh-plate" id="habilidades">
+        <div class="sh-row mb-2">
           <h2 class="sh-title mb-0">Habilidades</h2>
-          <span class="sh-muted">{{ points() }} {{ points() === 1 ? 'ponto' : 'pontos' }}</span>
+          <span class="sh-tag sh-tag-points">{{ points() }} {{ points() === 1 ? 'ponto' : 'pontos' }}</span>
         </div>
         @for (sk of store.skills(); track sk.type) {
-          <article class="sh-mission">
-            <div class="sh-row">
-              <div>
-                <strong>{{ info[sk.type]?.label ?? sk.type }}</strong>
-                <span class="sh-muted ms-1">{{ sk.level }}/{{ sk.maxLevel }}</span>
+          <article class="sh-skill">
+            <div class="sh-skill-main">
+              <div class="sh-skill-name">
+                {{ info[sk.type]?.label ?? sk.type }}
+                <span class="sh-skill-level">{{ sk.level }}/{{ sk.maxLevel }}</span>
               </div>
-              <button type="button" class="sh-btn sh-btn-sm" aria-label="Evoluir habilidade"
-                      [disabled]="points() < 1 || sk.level >= sk.maxLevel || store.busy()"
-                      (click)="store.distributeSkill(sk.type)">
-                <i class="bi bi-plus-lg"></i>
-              </button>
+              <div class="sh-segs" aria-hidden="true">
+                @for (i of segments(sk.maxLevel); track i) {
+                  <span class="sh-seg" [class.on]="i < sk.level"></span>
+                }
+              </div>
+              @if (info[sk.type]?.description; as desc) {
+                <p class="sh-muted mb-0">{{ desc }}</p>
+              }
             </div>
-            @if (info[sk.type]?.description; as desc) {
-              <p class="sh-muted mb-0">{{ desc }}</p>
-            }
+            <button type="button" class="sh-btn sh-btn-square" aria-label="Evoluir habilidade"
+                    [disabled]="points() < 1 || sk.level >= sk.maxLevel || store.busy()"
+                    (click)="store.distributeSkill(sk.type)">
+              <i class="bi bi-plus-lg"></i>
+            </button>
           </article>
         }
       </section>
@@ -43,5 +48,6 @@ const SKILL_INFO: Record<string, { label: string; description: string } | undefi
 export class Skills {
   protected store = inject(GameStore);
   protected info = SKILL_INFO;
+  protected segments = (n: number) => Array.from({ length: n }, (_, i) => i);
   protected points = () => this.store.player()?.skillPoints ?? 0;
 }

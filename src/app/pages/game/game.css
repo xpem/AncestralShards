@@ -4,45 +4,56 @@
 
 .sh-header {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
-  gap: .75rem; padding: .6rem 1rem; background: rgba(18, 16, 28, .98); backdrop-filter: blur(6px);
-  border-bottom: 1px solid #2c2645;
+  gap: .75rem; padding: .6rem 1rem; background: rgba(13, 9, 7, .94); backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
 }
-.sh-level { font-weight: 700; font-size: 1.05rem; }
-.sh-header > :first-child { flex: 1; }
+.sh-level { font-weight: 700; font-size: 1.1rem; color: var(--gold); letter-spacing: .04em; text-transform: uppercase; }
+.sh-level-info { flex: 1; min-width: 0; }
+.sh-level-badge {
+  flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-title); font-weight: 700; font-size: 1.1rem; color: var(--gold);
+  background: radial-gradient(circle at 50% 30%, #3a2810, var(--inset)); border: 2px solid var(--gold);
+  box-shadow: 0 0 14px rgba(245, 185, 66, .3);
+}
+.sh-xp { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.sh-xp .sh-bar { flex: 1; min-width: 80px; margin: 0; }
+.sh-xp small { font-size: .7rem; }
 
 .sh-icon-btn {
-  background: transparent; border: 1px solid #3a3258; color: #c9c2e4; border-radius: .5rem;
+  background: transparent; border: 1px solid var(--line-2); color: var(--text); border-radius: .5rem;
   width: 40px; height: 40px; display: grid; place-items: center;
 }
-.sh-icon-btn:hover { background: #2a2342; }
+.sh-icon-btn:hover { background: var(--accent-soft); }
 
 .sh-main { display: flex; flex-direction: column; gap: .75rem; padding: .75rem 1rem 0; }
-.sh-loading { padding: 2rem 1rem; text-align: center; color: #a79fc4; }
+.sh-loading { padding: 2rem 1rem; text-align: center; color: var(--muted); }
 
 .sh-summary {
   margin: 0; padding: .55rem .75rem; border-radius: .6rem; font-size: .85rem;
-  background: #231d3a; border: 1px solid #3a3258; color: #d8d0f2;
+  background: var(--surface-2); border: 1px solid var(--line-2); color: var(--text);
 }
 
 .sh-tabs {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 10; width: 100%; max-width: 480px;
-  display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(18, 16, 28, .96);
-  backdrop-filter: blur(6px); border-top: 1px solid #2c2645; padding-bottom: env(safe-area-inset-bottom);
+  display: grid; grid-template-columns: repeat(3, 1fr); background: rgba(13, 9, 7, .94);
+  backdrop-filter: blur(6px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
 }
 .sh-tab {
+  font-family: var(--font-title); letter-spacing: .06em; text-transform: uppercase;
   position: relative; display: flex; flex-direction: column; align-items: center; gap: .1rem; min-height: 56px;
-  justify-content: center; background: transparent; border: 0; color: #a79fc4; font-size: .75rem;
+  justify-content: center; background: transparent; border: 0; color: var(--muted); font-size: .75rem;
+  -webkit-tap-highlight-color: transparent; appearance: none; outline: none; transition: none;
 }
+.sh-tab:focus-visible { outline: 2px solid var(--gold-2); outline-offset: -2px; }
 .sh-tab i { font-size: 1.25rem; }
-.sh-tab.active { color: #fff; box-shadow: inset 0 2px 0 #8b6cf0; }
+.sh-tab.active { color: var(--gold-2); font-weight: 700; background: linear-gradient(180deg, rgba(245, 185, 66, .14), transparent); box-shadow: inset 0 3px 0 var(--gold); text-shadow: 0 0 10px rgba(245, 185, 66, .5); }
+.sh-tab.active i { color: var(--gold-2); }
 .sh-badge {
   position: absolute; top: 6px; left: calc(50% + 8px); min-width: 18px; height: 18px; padding: 0 5px;
-  border-radius: 999px; background: #e0457b; color: #fff; font-size: .68rem; line-height: 18px; text-align: center;
+  border-radius: 999px; background: var(--danger); color: #fff; font-size: .68rem; line-height: 18px; text-align: center;
 }
 
 /* Telas maiores: container mais largo, grades e abas no topo */
-.sh-grid { display: grid; gap: .75rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
-.sh-grid > * { min-width: 0; }
 
 @media (min-width: 768px) {
   .sh-page { max-width: 960px; display: flex; flex-direction: column; padding-bottom: 2rem; }
@@ -54,13 +65,13 @@
   }
   .sh-tab {
     flex-direction: row; gap: .5rem; min-height: 44px; padding: 0 1.1rem; border-radius: .6rem; font-size: .9rem;
-    border: 1px solid #3a3258;
+    border: 1px solid var(--line-2);
   }
   .sh-tab i { font-size: 1.05rem; }
-  .sh-tab.active { background: #271f46; border-color: #8b6cf0; box-shadow: none; }
+  .sh-tab { background: var(--surface); }
+  .sh-tab:hover { border-color: var(--accent); }
+  .sh-tab.active { background: var(--accent-soft); border-color: var(--gold); box-shadow: 0 0 14px rgba(245, 185, 66, .35), inset 0 0 8px rgba(245, 185, 66, .12); text-shadow: none; }
   .sh-badge { position: static; margin-left: .15rem; }
-  .sh-top, .sh-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sh-mines { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 }
 
 @media (min-width: 1200px) {

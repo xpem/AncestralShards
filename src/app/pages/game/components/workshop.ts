@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject } from '@angular/core';
 import { GemType, ItemStage, OreAmount, OreType, WorkshopGem, WorkshopRecipe } from '../../../models/shards.model';
 import { GameStore, MAX_TIMES, stageLabel } from '../../../services/game.store';
 import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
@@ -16,7 +16,7 @@ interface Check {
 @Component({
   selector: 'app-workshop',
   template: `
-    <section class="sh-card" id="oficina">
+    <section class="sh-card sh-plate" id="oficina">
       <h2 class="sh-title">Gemas</h2>
       @if (rows().length === 0) {
         <p class="sh-muted">Nenhuma gema ainda.</p>
@@ -34,15 +34,14 @@ interface Check {
         </ul>
       }
 
-      <h2 class="sh-title mt-3">Oficina de Lapidação</h2>
-      <div class="sh-grid sh-pair">
+      <div class="sh-grid sh-pair mt-3">
         @for (r of store.workshop(); track r.stage) {
-          <article class="sh-mission">
+          <article class="sh-recipe">
             <div class="sh-row">
-              <strong>{{ stageName(r.stage) }}</strong>
+              <h3 class="sh-recipe-title">{{ stageName(r.stage) }}</h3>
               @if (!r.skillAllows) {
-                <button type="button" class="sh-tag sh-tag-btn" (click)="store.tab.set('progress')">
-                  Habilidade Oficina nível {{ r.level }} · ir às habilidades
+                <button type="button" class="sh-tag sh-tag-btn sh-tag-lock" title="Ir às habilidades" (click)="store.tab.set('progress')">
+                  <i class="bi bi-lock"></i> Oficina nv. {{ r.level }}
                 </button>
               }
             </div>
@@ -53,26 +52,25 @@ interface Check {
               @let c = check(r, g);
               <div class="sh-craft">
                 <div class="sh-row">
-                  <span>
-                    <span class="sh-dot" [style.background]="info[g.oreType].color"></span> {{ label(g.oreType) }}
+                  <span class="d-flex align-items-center gap-2">
+                    <span class="sh-gem" [style.background]="info[g.oreType].color"></span>
+                    <strong>{{ label(g.oreType) }}</strong>
                     <span class="sh-muted">({{ g.available }})</span>
                   </span>
                   <span class="d-flex align-items-center gap-1">
-                    <input type="number" inputmode="numeric" class="form-control form-control-sm" style="width: 4.5rem"
-                           min="1" [max]="maxTimes" [value]="requested(r, g)"
-                           [attr.aria-label]="'Quantidade de ' + label(g.oreType)"
-                           (input)="setTimes(r, g, $any($event.target).value)" />
                     <button type="button" class="sh-btn sh-btn-sm" [disabled]="c.reason !== null"
-                            (click)="craft(r, g)">Lapidar</button>
+                            (click)="craft(r, g, 1)">Lapidar</button>
+                    <button type="button" class="sh-btn sh-btn-sm" [disabled]="batch(r, g).reason !== null"
+                            [attr.aria-label]="'Lapidar ' + batchSize + ' vezes'" (click)="craft(r, g, batchSize)">×{{ batchSize }}</button>
                   </span>
                 </div>
                 @if (c.reason) {
-                  <small class="sh-short d-block">{{ c.reason }}</small>
+                  <small class="sh-short d-block sh-craft-note">{{ c.reason }}</small>
                 } @else {
-                  <small class="sh-muted d-block">Gasta {{ spend(r, g, c.times) }}</small>
-                }
-                @if (r.skillAllows && c.max > 0) {
-                  <button type="button" class="sh-link" (click)="setTimes(r, g, c.max)">Máximo: {{ c.max }}</button>
+                  <small class="sh-muted d-block sh-craft-note">Gasta {{ spend(r, g, 1) }}</small>
+                  @if (batch(r, g).reason; as why) {
+                    <small class="sh-muted d-block">×{{ batchSize }}: {{ why }}</small>
+                  }
                 }
               </div>
             }
@@ -87,13 +85,14 @@ export class Workshop implements OnInit {
   protected info = ORE_INFO;
   protected label = oreLabel;
   protected stageName = stageLabel;
-  protected readonly maxTimes = MAX_TIMES;
-
-  private readonly chosen = signal<Record<string, number>>({});
+  /** Tamanho do lote do botão ×N (apresentação; o limite real de `times` é MAX_TIMES). */
+  protected readonly batchSize = 5;
 
   protected rows = computed(() => {
     const by = new Map<OreType, { stage: ItemStage; quantity: number }[]>();
     for (const it of this.store.fullInventory()) {
+      // Minérios fora do enum conhecido (ex.: dados antigos com valores sem uso) não têm como ser exibidos.
+      if (!(it.oreType in ORE_INFO) || !STAGES.includes(it.stage)) continue;
       by.set(it.oreType, [...(by.get(it.oreType) ?? []), { stage: it.stage, quantity: it.quantity }]);
     }
     return [...by].map(([ore, cells]) => ({ ore, cells: cells.sort((a, b) => STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage)) }));
@@ -117,18 +116,12 @@ export class Workshop implements OnInit {
     return `${gems} + ${this.cost(r.cost, times)}`;
   }
 
-  protected requested(r: WorkshopRecipe, g: WorkshopGem): number {
-    return this.chosen()[this.key(r, g.oreType)] ?? 1;
+  protected batch(r: WorkshopRecipe, g: WorkshopGem): Check {
+    return this.check(r, g, this.batchSize);
   }
 
-  protected setTimes(r: WorkshopRecipe, g: WorkshopGem, raw: string | number): void {
-    const n = Math.floor(Number(raw));
-    this.chosen.update((c) => ({ ...c, [this.key(r, g.oreType)]: Number.isFinite(n) ? n : 0 }));
-  }
-
-  /** Valida o pedido atual e diz o motivo exato de não poder lapidar (o servidor continua sendo a palavra final). */
-  protected check(r: WorkshopRecipe, g: WorkshopGem): Check {
-    const times = this.requested(r, g);
+  /** Valida `times` lapidações e diz o motivo exato de não poder (o servidor continua sendo a palavra final). */
+  protected check(r: WorkshopRecipe, g: WorkshopGem, times = 1): Check {
     let max = Math.min(MAX_TIMES, Math.floor(g.available / r.inputQuantity));
     for (const c of r.cost) max = Math.min(max, Math.floor(this.store.quantityOf(c.oreType) / c.quantity));
     max = Math.max(0, max);
@@ -136,7 +129,6 @@ export class Workshop implements OnInit {
     const fail = (reason: string): Check => ({ times, max, reason });
     if (!r.skillAllows) return fail(`Libere com a habilidade Oficina (nível ${r.level}).`);
     if (this.store.crafting()) return fail('Lapidando...');
-    if (!Number.isInteger(times) || times < 1) return fail('Informe uma quantidade de 1 ou mais.');
     if (times > MAX_TIMES) return fail(`O limite é ${MAX_TIMES} por vez.`);
 
     const needGems = r.inputQuantity * times;
@@ -151,13 +143,8 @@ export class Workshop implements OnInit {
     return { times, max, reason: null };
   }
 
-  protected craft(r: WorkshopRecipe, g: WorkshopGem): void {
-    const c = this.check(r, g);
-    if (c.reason) return;
-    void this.store.craft(g.oreType as GemType, r.stage as Crafted, c.times);
-  }
-
-  private key(r: WorkshopRecipe, ore: OreType): string {
-    return `${r.stage}:${ore}`;
+  protected craft(r: WorkshopRecipe, g: WorkshopGem, times: number): void {
+    if (this.check(r, g, times).reason) return;
+    void this.store.craft(g.oreType as GemType, r.stage as Crafted, times);
   }
 }

@@ -26,6 +26,13 @@ export class Game implements OnInit, OnDestroy {
     { id: 'progress', label: 'Progresso', icon: 'bi-trophy' },
   ];
 
+  protected xpPercent(): number {
+    const p = this.store.player();
+    if (!p) return 0;
+    const total = p.experience + p.experienceToNextLevel;
+    return total > 0 ? (p.experience / total) * 100 : 0;
+  }
+
   ngOnInit(): void {
     this.store.start();
   }
