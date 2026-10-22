@@ -287,3 +287,17 @@ conhecer por conta própria é o **limite de 100 do `times`**.
 ## 9. Fora do escopo por enquanto
 
 Venda/mercado de minérios, Oficina de Lapidação (estágios bruto/polido/facetado), combate e elementos das gemas. As gemas hoje só se acumulam no inventário.
+
+## 10. Atualização — novas missões e missões diárias (Evoluções 6 e 7)
+
+Detalhes e exemplos de JSON: `PLANO-FRONT-OFICINA.md` (seções 12 e 13, no backend). Os tipos estão em `src/app/models/shards.model.ts`.
+
+**Novas missões (sem rota nova).** `MissionType` passa de 4 para 17 valores (`CartTraining`, `CartUpgrade`, `OpenWorkshop`, `FirstPolish`, `FirstFacet`, `Diversification`, `Collector`, `PolishBatch`, `FullSet`, `FacetBatch`, `ThirdMine`, `FullCart`, `DoubleLuck` somados aos 4 antigos). `collect-cart`, `upgrade-cart` e `workshop/craft` agora devolvem `missions` (mesclar por `type`; `Claimed` sai da lista). Missão pode nascer `Completed`. `CartTraining`, `OpenWorkshop` e `DoubleLuck` exigem ponto de habilidade.
+
+**Diárias.**
+- `ShardsState.daily: DailyState | null` (nulo até resgatar a Missão 1: esconder o painel). `DailyState = { day, resetsAtUtc, missions: DailyMission[3], chest: { claimed, canClaim, reward }, streak: { days, cycleDays } }`; `DailyMissionType = Login | Energy | Cart | Quartz | Gems | Polish | Facet`.
+- `mine`, `collect-cart` e `workshop/craft` trazem `dailyMissions` (as que mudaram; mesclar por `type`). Diária `Claimed` **permanece** na lista até a virada do dia. `production` e `upgrade-cart` não contam para `Cart`/`Quartz`/`Gems`.
+- `POST /Shards/daily/{type}/claim` e `POST /Shards/daily/chest/claim` → `{ rewards, levelUp, player, inventory, daily }` (o `daily` devolvido substitui o local).
+- `chest.reward` é o do **próximo** baú; `canClaim` só com as 3 diárias `Claimed`; o último dia do ciclo (`cycleDays`) paga o dobro.
+- Ao passar de `resetsAtUtc` refazer `GET /state` (o servidor só cria o dia novo nele).
+- Erros (400): `DailyNotFound`, `DailyNotCompleted`, `DailyAlreadyClaimed`, `ChestNotReady`, `ChestAlreadyClaimed`.

@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ClaimMissionResult, CollectCartResult, CraftResult, GemType, InventoryItem, ItemStage, WorkshopRecipe, DistributeSkillResult, MineCartUpgrade, MineState, Mission, MissionType, NextMine,
+  ClaimMissionResult, CollectCartResult, CraftResult, DailyClaimResult, DailyMission, DailyMissionType, DailyState, GemType, InventoryItem, ItemStage, WorkshopRecipe, DistributeSkillResult, MineCartUpgrade, MineState, Mission, MissionType, NextMine,
   MineSlots, OreAmount, OreType, Player, ProductionOption, SetProductionResult, ShardsState, Skill, SkillType, UnlockMineResult, UpgradeCartResult,
 } from '../models/shards.model';
 import { ShardsApi } from './shards-api';
@@ -61,6 +61,8 @@ export class GameStore {
   readonly inventory = signal<OreAmount[]>([]);
   readonly mines = signal<MineView[]>([]);
   readonly missions = signal<Mission[]>([]);
+  /** Missões do dia; `null` até resgatar a Missão 1. */
+  readonly daily = signal<DailyState | null>(null);
   readonly nextMine = signal<NextMine | null>(null);
   readonly productions = signal<ProductionOption[]>([]);
   readonly mineSlots = signal<MineSlots | null>(null);
@@ -71,10 +73,15 @@ export class GameStore {
 
   // ---- Navegação ----
   readonly tab = signal<GameTab>('mines');
-  /** Pontos de habilidade para gastar ou missões para resgatar. */
-  readonly progressBadge = computed(
-    () => (this.player()?.skillPoints ?? 0) + this.missions().filter((m) => m.status === 'Completed').length,
-  );
+  /** Pontos de habilidade, missões e diárias para resgatar e o baú do dia pronto. */
+  readonly progressBadge = computed(() => {
+    const d = this.daily();
+    return (
+      (this.player()?.skillPoints ?? 0) +
+      this.missions().filter((m) => m.status === 'Completed').length +
+      (d ? d.missions.filter((m) => m.status === 'Completed').length + (d.chest.canClaim ? 1 : 0) : 0)
+    );
+  });
 
   /** Há uma lapidação em andamento (bloqueia só os botões da Oficina; as ações já são serializadas pela fila). */
   readonly crafting = signal(false);
@@ -93,6 +100,8 @@ export class GameStore {
   private chain: Promise<unknown> = Promise.resolve();
   private seq = 0;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
+  /** Dia das diárias que já foi recarregado na virada (evita repetir o `load()` a cada segundo). */
+  private rolloverDay: string | null = null;
   private onVisibility = () => {
     if (document.visibilityState === 'visible') void this.load();
   };
@@ -143,7 +152,10 @@ export class GameStore {
   // ---- Ciclo de vida ----
   start(): void {
     if (this.tickTimer) return;
-    this.tickTimer = setInterval(() => this.tick.set(Date.now()), 1000);
+    this.tickTimer = setInterval(() => {
+      this.tick.set(Date.now());
+      this.checkDayRollover();
+    }, 1000);
     document.addEventListener('visibilitychange', this.onVisibility);
     void this.load();
   }
@@ -152,6 +164,14 @@ export class GameStore {
     if (this.tickTimer) clearInterval(this.tickTimer);
     this.tickTimer = null;
     document.removeEventListener('visibilitychange', this.onVisibility);
+  }
+
+  /** Na virada do dia o servidor só cria as diárias novas no `GET /state`: reconsulta uma vez. */
+  private checkDayRollover(): void {
+    const d = this.daily();
+    if (!d || this.rolloverDay === d.day || this.nowMs() < Date.parse(d.resetsAtUtc)) return;
+    this.rolloverDay = d.day;
+    void this.load();
   }
 
   /** Recarrega o `GET /Shards/state` (na fila, para não correr com ações em andamento). */
@@ -200,6 +220,7 @@ export class GameStore {
 
     const summary: MineSummary = { id: ++this.seq, drops: [], doubleDrops: 0, xpGained: 0, levelUp: false, times: 0 };
     let failure: unknown = null;
+    let completed: string | null = null;
 
     outer: for (const key of Object.keys(rest)) {
       const mineNumber = Number(key);
@@ -209,7 +230,7 @@ export class GameStore {
           const res = await this.withRetry(() => firstValueFrom(this.api.mine(mineNumber, times)));
           this.player.set(res.player);
           this.addToInventory(res.drops);
-          this.mergeMissions(res.missions);
+          completed = this.mergeBoth(res.missions, res.dailyMissions) ?? completed;
           summary.drops = sumOres(summary.drops, res.drops);
           summary.doubleDrops += res.doubleDrops;
           summary.xpGained += res.xpGained;
@@ -227,6 +248,7 @@ export class GameStore {
     this.inFlight.set(0);
     if (summary.times > 0) this.lastMine.set(summary);
     if (summary.levelUp) this.notify('success', 'Você subiu de nível!');
+    this.announceCompleted(completed);
     if (!failure) return;
 
     this.fail(failure);
@@ -249,8 +271,10 @@ export class GameStore {
     return this.act(async () => {
       const res = await this.withRetry(() => firstValueFrom(this.api.collectCart(mineNumber)));
       this.inventory.set(res.inventory);
+      const completed = this.mergeBoth(res.missions, res.dailyMissions);
       await this.fetchState();
       this.notify('success', `Vagonete coletado: ${formatOres(res.collected)}.`);
+      this.announceCompleted(completed);
       return res;
     });
   }
@@ -270,8 +294,10 @@ export class GameStore {
     return this.act(async () => {
       const res = await this.withRetry(() => firstValueFrom(this.api.upgradeCart(mineNumber)));
       this.inventory.set(res.inventory);
+      const completed = this.mergeMissions(res.missions);
       await this.fetchState();
       this.notify('success', `Vagonete da Mina ${mineNumber} ampliado para ${res.mine.cartCapacity}.`);
+      this.announceCompleted(completed);
       return res;
     });
   }
@@ -313,8 +339,10 @@ export class GameStore {
     return this.act(async () => {
       const res = await this.withRetry(() => firstValueFrom(this.api.craft({ gem, stage, times })));
       this.fullInventory.set(res.inventory.items);
+      const completed = this.mergeBoth(res.missions, res.dailyMissions);
       await this.fetchState();
       this.notify('success', `Lapidado: ${res.crafted.quantity}× ${oreLabel(gem)} ${stageLabel(stage).toLowerCase()}.`);
+      this.announceCompleted(completed);
       return res;
     }).finally(() => this.crafting.set(false));
   }
@@ -327,6 +355,36 @@ export class GameStore {
       this.mergeMissions(res.missions);
       await this.fetchState();
       this.notify('success', res.levelUp ? 'Recompensa resgatada. Você subiu de nível!' : 'Recompensa resgatada.');
+      return res;
+    });
+  }
+
+  claimDaily(type: DailyMissionType): Promise<DailyClaimResult | null> {
+    return this.claimDailyWith(
+      () => firstValueFrom(this.api.claimDaily(type)),
+      'Recompensa do dia resgatada.',
+      'Recompensa do dia resgatada. Você subiu de nível!',
+    );
+  }
+
+  claimDailyChest(): Promise<DailyClaimResult | null> {
+    return this.claimDailyWith(
+      () => firstValueFrom(this.api.claimDailyChest()),
+      'Baú do dia aberto.',
+      'Baú do dia aberto. Você subiu de nível!',
+    );
+  }
+
+  private claimDailyWith(call: () => Promise<DailyClaimResult>, ok: string, okLevelUp: string): Promise<DailyClaimResult | null> {
+    return this.act(async () => {
+      const streakBefore = this.daily()?.streak.days ?? 0;
+      // Em erro (inclusive `DailyNotFound` com o dia virado) o `act` já refaz o state.
+      const res = await this.withRetry(call);
+      this.player.set(res.player);
+      this.inventory.set(res.inventory);
+      this.daily.set(res.daily);
+      this.notify('success', res.levelUp ? okLevelUp : ok);
+      if (res.daily.streak.days > streakBefore) this.notify('success', `Sequência de ${res.daily.streak.days} dias!`);
       return res;
     });
   }
@@ -345,6 +403,7 @@ export class GameStore {
     this.inventory.set(s.inventory);
     this.mines.set(s.mines.map((m) => ({ ...m, asOfMs })));
     this.missions.set(s.missions);
+    this.daily.set(s.daily ?? null);
     this.nextMine.set(s.nextMine);
     this.productions.set(s.productions);
     this.mineSlots.set(s.mineSlots ?? null);
@@ -396,9 +455,10 @@ export class GameStore {
     this.inventory.update((inv) => sumOres(inv, drops));
   }
 
-  /** Mescla por `type`: troca a existente, remove `Claimed`, adiciona a nova (contrato, seção 4). */
-  private mergeMissions(changed: Mission[]): void {
-    if (changed.length === 0) return;
+  /** Mescla por `type`: troca a existente, remove `Claimed`, adiciona a nova (contrato, seção 4). Devolve a última que passou a `Completed`. */
+  mergeMissions(changed: Mission[] | undefined): string | null {
+    if (!changed?.length) return null;
+    const before = this.missions();
     this.missions.update((list) => {
       const next = [...list];
       for (const m of changed) {
@@ -410,6 +470,32 @@ export class GameStore {
       }
       return next;
     });
+    return newlyCompleted(before, changed);
+  }
+
+  /** Mescla as diárias por `type`. Diferente do tutorial, `Claimed` NÃO sai da lista até a virada do dia. */
+  mergeDaily(changed: DailyMission[] | undefined): string | null {
+    const d = this.daily();
+    if (!d || !changed?.length) return null;
+    const missions = [...d.missions];
+    for (const m of changed) {
+      const i = missions.findIndex((x) => x.type === m.type);
+      if (i >= 0) missions[i] = m;
+      else missions.push(m);
+    }
+    this.daily.set({ ...d, missions });
+    return newlyCompleted(d.missions, changed);
+  }
+
+  private mergeBoth(missions: Mission[] | undefined, daily: DailyMission[] | undefined): string | null {
+    const a = this.mergeMissions(missions);
+    const b = this.mergeDaily(daily);
+    return b ?? a;
+  }
+
+  /** O `notice` é um slot único: em lote, só a última conclusão aparece. */
+  private announceCompleted(name: string | null): void {
+    if (name) this.notify('info', `Missão concluída: ${name}`);
   }
 
   private fail(err: unknown): void {
@@ -419,6 +505,15 @@ export class GameStore {
   notify(kind: Notice['kind'], text: string): void {
     this.notice.set({ id: ++this.seq, kind, text });
   }
+}
+
+/** Nome da última missão de `changed` que estava ativa e passou a `Completed`. */
+function newlyCompleted(before: { type: string; status: string }[], changed: { type: string; name: string; status: string }[]): string | null {
+  let name: string | null = null;
+  for (const m of changed) {
+    if (m.status === 'Completed' && before.find((x) => x.type === m.type)?.status !== 'Completed') name = m.name;
+  }
+  return name;
 }
 
 export const stageLabel = (s: ItemStage): string => ({ Raw: 'Bruto', Polished: 'Polido', Faceted: 'Facetado' })[s];

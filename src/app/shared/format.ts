@@ -8,3 +8,9 @@ export function formatDuration(ms: number): string {
   if (m > 0) return `${m} min ${String(s).padStart(2, '0')} s`;
   return `${s} s`;
 }
+
+/** Contagem regressiva curta "hh:mm" (arredonda para cima; hora local só para exibição). */
+export function formatHm(ms: number): string {
+  const totalMin = Math.max(0, Math.ceil(ms / 60000));
+  return `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+}

@@ -24,6 +24,11 @@ const MESSAGES: Record<string, string> = {
   InvalidGem: 'Gema inválida.',
   InvalidStage: 'Etapa de lapidação inválida.',
   WorkshopLocked: 'Libere esta lapidação com a habilidade Oficina.',
+  DailyNotFound: 'Esta missão do dia não está mais disponível.',
+  DailyNotCompleted: 'A missão do dia ainda não foi concluída.',
+  DailyAlreadyClaimed: 'Recompensa do dia já resgatada.',
+  ChestNotReady: 'Resgate todas as missões do dia para abrir o baú.',
+  ChestAlreadyClaimed: 'O baú de hoje já foi resgatado.',
   ConcurrencyConflict: 'Tente novamente.',
 };
 

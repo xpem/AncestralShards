@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
-  ClaimMissionResult, CollectCartResult, CraftRequest, CraftResult, InventoryRes, DistributeSkillRequest, DistributeSkillResult, MineRequest, MineResult,
+  ClaimMissionResult, CollectCartResult, CraftRequest, DailyClaimResult, DailyMissionType, CraftResult, InventoryRes, DistributeSkillRequest, DistributeSkillResult, MineRequest, MineResult,
   MissionType, OreType, SetProductionRequest, SetProductionResult, ShardsState, SkillType, UnlockMineResult, UpgradeCartResult,
 } from '../models/shards.model';
 
@@ -54,5 +54,13 @@ export class ShardsApi {
 
   claimMission(missionType: MissionType): Observable<ClaimMissionResult> {
     return this.http.post<ClaimMissionResult>(`${this.base}/missions/${missionType}/claim`, null);
+  }
+
+  claimDaily(type: DailyMissionType): Observable<DailyClaimResult> {
+    return this.http.post<DailyClaimResult>(`${this.base}/daily/${type}/claim`, null);
+  }
+
+  claimDailyChest(): Observable<DailyClaimResult> {
+    return this.http.post<DailyClaimResult>(`${this.base}/daily/chest/claim`, null);
   }
 }

@@ -1,7 +1,9 @@
 import { Component, inject } from '@angular/core';
-import { Mission, MissionReward } from '../../../models/shards.model';
+import { Mission, MissionReward, MissionType } from '../../../models/shards.model';
 import { GameStore } from '../../../services/game.store';
 import { oreLabel } from '../../../shared/ore-info';
+
+const SKILL_POINT_MISSIONS: MissionType[] = ['CartTraining', 'OpenWorkshop', 'DoubleLuck'];
 
 @Component({
   selector: 'app-mission-list',
@@ -23,6 +25,9 @@ import { oreLabel } from '../../../shared/ore-info';
             <div class="sh-bar thin">
               <div class="sh-bar-fill mission" [style.width.%]="percent(m)"></div>
             </div>
+            @if (needsSkillPoint(m)) {
+              <small class="sh-muted d-block">Suba de nível para ganhar um ponto de habilidade</small>
+            }
             <small class="sh-reward"><i class="bi bi-stars"></i> Recompensa: {{ reward(m.reward) }}</small>
             @if (m.status === 'Completed') {
               <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [disabled]="store.busy()" (click)="store.claimMission(m.type)">
@@ -40,6 +45,11 @@ export class MissionList {
 
   protected percent(m: Mission): number {
     return m.goal > 0 ? Math.min(100, (m.progress / m.goal) * 100) : 0;
+  }
+
+  /** Missões que exigem gastar um ponto de habilidade. */
+  protected needsSkillPoint(m: Mission): boolean {
+    return m.status === 'Active' && SKILL_POINT_MISSIONS.includes(m.type) && this.store.player()?.skillPoints === 0;
   }
 
   protected reward(r: MissionReward): string {

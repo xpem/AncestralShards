@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { GameStore, GameTab } from '../../services/game.store';
 import { oreLabel } from '../../shared/ore-info';
+import { DailyPanel } from './components/daily-panel';
 import { EnergyBar } from './components/energy-bar';
 import { NextMine } from './components/next-mine';
 import { Skills } from './components/skills';
@@ -13,7 +14,7 @@ import { Toast } from './components/toast';
 
 @Component({
   selector: 'app-game',
-  imports: [EnergyBar, Inventory, MineCard, MissionList, NextMine, Skills, Toast, Workshop],
+  imports: [DailyPanel, EnergyBar, Inventory, MineCard, MissionList, NextMine, Skills, Toast, Workshop],
   templateUrl: './game.html',
   styleUrl: './game.css',
 })
