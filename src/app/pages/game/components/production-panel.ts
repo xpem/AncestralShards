@@ -1,21 +1,21 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { Drop, OreAmount, OreType, ProductionOption } from '../../../models/shards.model';
 import { GameStore, MineView } from '../../../services/game.store';
-import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
+import { oreColor, oreLabel } from '../../../shared/ore-info';
 
 @Component({
   selector: 'app-production-panel',
   template: `
-    <div class="sh-prod">
+    <div class="sh-prod" [attr.data-ui]="'production-panel-' + mine().mineNumber">
       <p class="sh-muted mb-2">
         Escolha o que a mina produz. O vagonete é esvaziado antes da troca, com a produção atual.
       </p>
 
       @for (opt of store.productions(); track opt.focus) {
-        <button type="button" class="sh-prod-opt" [class.current]="isCurrent(opt)" [class.selected]="selected() === opt.focus"
+        <button type="button" class="sh-prod-opt" [attr.data-ui]="'production-panel-' + mine().mineNumber + '-opt-' + opt.focus" [class.current]="isCurrent(opt)" [class.selected]="selected() === opt.focus"
                 [disabled]="isCurrent(opt) || store.busy()" (click)="selected.set(opt.focus)">
           <span class="sh-row">
-            <span><span class="sh-dot" [style.background]="info[opt.focus].color"></span> <strong>{{ label(opt.focus) }}</strong></span>
+            <span><span class="sh-dot" [style.background]="color(opt.focus)"></span> <strong>{{ label(opt.focus) }}</strong></span>
             @if (isCurrent(opt)) {
               <span class="sh-tag ok">Atual</span>
             } @else {
@@ -27,7 +27,7 @@ import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
       }
 
       @if (selectedOption(); as opt) {
-        <button type="button" class="sh-btn sh-btn-block" [disabled]="!canTry(opt) || store.busy()" (click)="confirm(opt)">
+        <button type="button" class="sh-btn sh-btn-block" [attr.data-ui]="'production-panel-' + mine().mineNumber + '-confirm-btn'" [disabled]="!canTry(opt) || store.busy()" (click)="confirm(opt)">
           <i class="bi bi-arrow-repeat"></i> Trocar para {{ label(opt.focus) }} ({{ cost(opt.switchCost) }})
         </button>
         @if (!canTry(opt)) {
@@ -39,7 +39,7 @@ import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
 })
 export class ProductionPanel {
   protected store = inject(GameStore);
-  protected info = ORE_INFO;
+  protected color = oreColor;
   protected label = oreLabel;
 
   readonly mine = input.required<MineView>();

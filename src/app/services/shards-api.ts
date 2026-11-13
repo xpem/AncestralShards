@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
-  ClaimMissionResult, CollectCartResult, CraftRequest, DailyClaimResult, DailyMissionType, CraftResult, InventoryRes, DistributeSkillRequest, DistributeSkillResult, MineRequest, MineResult,
+  AttackRequest, AttackResult, ClaimMissionResult, CollectCartResult, MineDepositRequest, MineDepositResult, RotateDepositResult, CraftRequest, DailyClaimResult, DailyMissionType, CraftResult, InventoryRes, DistributeSkillRequest, DistributeSkillResult, MineRequest, MineResult,
   MissionType, OreType, SetProductionRequest, SetProductionResult, ShardsState, SkillType, UnlockMineResult, UpgradeCartResult,
 } from '../models/shards.model';
 
@@ -62,5 +62,19 @@ export class ShardsApi {
 
   claimDailyChest(): Observable<DailyClaimResult> {
     return this.http.post<DailyClaimResult>(`${this.base}/daily/chest/claim`, null);
+  }
+
+  rotateDeposit(id: number): Observable<RotateDepositResult> {
+    return this.http.post<RotateDepositResult>(`${this.base}/deposits/${id}/rotate`, null);
+  }
+
+  /** Com `preview: true` nada é gravado e a resposta descreve o que aconteceria. */
+  attackDeposit(id: number, body: AttackRequest): Observable<AttackResult> {
+    return this.http.post<AttackResult>(`${this.base}/deposits/${id}/attack`, body);
+  }
+
+  mineDeposit(id: number, times?: number): Observable<MineDepositResult> {
+    const body: MineDepositRequest | null = times === undefined ? null : { times };
+    return this.http.post<MineDepositResult>(`${this.base}/deposits/${id}/mine`, body);
   }
 }

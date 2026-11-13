@@ -6,14 +6,14 @@ import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
   selector: 'app-next-mine',
   template: `
     @if (next(); as n) {
-      <section class="sh-card next-mine">
+      <section class="sh-card next-mine" data-ui="next-mine">
         <div class="sh-row">
           <h2 class="sh-title mb-0">Mina {{ n.mineNumber }}</h2>
           <span class="sh-tag sh-tag-sale">À venda</span>
         </div>
         <div class="next-mine-lock"><i class="bi bi-lock"></i></div>
         @for (c of n.cost; track c.oreType) {
-          <div class="sh-row next-mine-cost">
+          <div class="sh-row next-mine-cost" [attr.data-ui]="'next-mine-cost-' + c.oreType">
             <span><span class="sh-dot d-inline-block me-1" [style.background]="color(c.oreType)"></span>{{ label(c.oreType) }}</span>
             <strong [class.sh-short]="store.quantityOf(c.oreType) < c.quantity">{{ store.quantityOf(c.oreType) }}/{{ c.quantity }}</strong>
           </div>
@@ -21,14 +21,14 @@ import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
         }
         @if (!n.hasSlot) {
           <p class="sh-muted mt-2 mb-2">Sem espaço para uma nova mina. Use um ponto de habilidade em Minas.</p>
-          <button type="button" class="sh-btn sh-btn-block" (click)="goToSkills()">
+          <button type="button" class="sh-btn sh-btn-block" data-ui="next-mine-skills-btn" (click)="store.goToSkills()">
             <i class="bi bi-arrow-up-circle"></i> Ir para habilidades
           </button>
         } @else {
           @if (missing(); as m) {
             <p class="sh-muted mt-2 mb-2">Faltam {{ m }}.</p>
           }
-          <button type="button" class="sh-btn sh-btn-block next-mine-btn" [disabled]="!canAfford() || store.busy()" (click)="store.unlockMine()">
+          <button type="button" class="sh-btn sh-btn-block next-mine-btn" data-ui="next-mine-unlock-btn" [disabled]="!canAfford() || store.busy()" (click)="store.unlockMine()">
             <i class="bi bi-lock"></i> Desbloquear Mina {{ n.mineNumber }}
           </button>
         }
@@ -59,8 +59,4 @@ export class NextMine {
       .map((x) => `${x.diff} ${oreLabel(x.c.oreType)}`)
       .join(', ');
   });
-
-  protected goToSkills(): void {
-    document.getElementById('habilidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 }

@@ -13,13 +13,13 @@ const SKILL_INFO: Record<string, { label: string; description: string } | undefi
   selector: 'app-skills',
   template: `
     @if (store.skills().length > 0) {
-      <section class="sh-card sh-plate" id="habilidades">
+      <section class="sh-card sh-plate" id="habilidades" data-ui="skills">
         <div class="sh-row mb-2">
           <h2 class="sh-title mb-0">Habilidades</h2>
-          <span class="sh-tag sh-tag-points">{{ points() }} {{ points() === 1 ? 'ponto' : 'pontos' }}</span>
+          <span class="sh-tag sh-tag-points" data-ui="skills-points">{{ points() }} {{ points() === 1 ? 'ponto' : 'pontos' }}</span>
         </div>
         @for (sk of store.skills(); track sk.type) {
-          <article class="sh-skill">
+          <article class="sh-skill" [attr.data-ui]="'skill-' + sk.type">
             <div class="sh-skill-main">
               <div class="sh-skill-name">
                 {{ info[sk.type]?.label ?? sk.type }}
@@ -35,7 +35,7 @@ const SKILL_INFO: Record<string, { label: string; description: string } | undefi
               }
             </div>
             <button type="button" class="sh-btn sh-btn-square" aria-label="Evoluir habilidade"
-                    [disabled]="points() < 1 || sk.level >= sk.maxLevel || store.busy()"
+                    [attr.data-ui]="'skill-' + sk.type + '-upgrade-btn'" [disabled]="points() < 1 || sk.level >= sk.maxLevel || store.busy()"
                     (click)="store.distributeSkill(sk.type)">
               <i class="bi bi-plus-lg"></i>
             </button>

@@ -5,7 +5,7 @@ import { GameStore, Notice } from '../../../services/game.store';
   selector: 'app-toast',
   template: `
     @if (shown(); as n) {
-      <div class="sh-toast" [class.error]="n.kind === 'error'" [class.success]="n.kind === 'success'" role="status" (click)="shown.set(null)">
+      <div class="sh-toast" [class.error]="n.kind === 'error'" [class.success]="n.kind === 'success'" role="status" data-ui="toast" (click)="shown.set(null)">
         {{ n.text }}
       </div>
     }

@@ -21,6 +21,7 @@ Documentos de referência (leia antes de mexer em qualquer chamada à API):
 - `docs/CONTRATO-FRONT.md` (cópia local; o original não existe mais em `Shards/front/`) — contrato das rotas, interfaces TypeScript, erros e regras de tempo (**fonte de verdade**)
 - `Shards/PLANO.md` — decisões e regras do jogo
 - `Shards/Shards.http` — roteiro de requisições para testar à mão
+- `Shards/PLANO-FRONT-OFICINA.md`, `PLANO-FRONT-CATALOGO.md`, `PLANO-FRONT-DEPOSITOS.md`, `PLANO-FRONT-ATAQUE.md`, `PLANO-FRONT-EXTRACAO.md` — contratos mais novos (oficina, catálogo de minérios, depósitos, ataque com prévia, extração). Onde divergirem do `docs/CONTRATO-FRONT.md`, valem estes.
 - Código: `UniqueServer/Controllers/ShardsController.cs` e `Shards/Model/Res/`
 
 ## Stack e decisões
@@ -37,6 +38,18 @@ Documentos de referência (leia antes de mexer em qualquer chamada à API):
 - `src/app/services/` — um service por API (`auth`, `shards-api`) e a **store do jogo** (signals)
 - `src/app/models/` — interfaces TypeScript do contrato (`docs/CONTRATO-FRONT.md`, seção 6)
 - `src/environments/` — ambientes (dev/prod)
+
+## Identificação de elementos (`data-ui`)
+
+Para o usuário e o Claude citarem a mesma coisa na tela, todo componente e controle relevante leva `data-ui="nome"`.
+
+- **Use `data-ui`, não `id`.** O `id` HTML é único na página e vários componentes se repetem (minas, missões, itens). `id` real só onde o código precisa de âncora única (ex.: `#habilidades`).
+- **Nomes em kebab-case**, do geral ao específico: `<componente>[-<instância>][-<parte>]`. Botões terminam em `-btn`, links em `-link`.
+  Ex.: `mine-card-2`, `mine-card-2-collect-btn`, `next-mine-skills-btn`, `skill-CartCapacity-upgrade-btn`, `tab-progress`, `signin-submit-btn`.
+- **Instância repetida:** acrescente o identificador do dado (`mineNumber`, `type`, `oreType`, `stage`) com `[attr.data-ui]="'mine-card-' + mine().mineNumber"`.
+- **Todo componente novo** recebe `data-ui` no elemento raiz e nos botões/campos principais.
+- **Modo dev:** abrir o app com `?ids=1` (ex.: `http://localhost:4200/?ids=1`) mostra o `data-ui` de cada elemento sobre a tela (`src/app/shared/dev-ids.ts`).
+  Vale só para a carga da página; recarregue com o parâmetro na URL.
 
 ## Convenções do jogo (importantes)
 

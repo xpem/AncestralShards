@@ -1,11 +1,14 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ClaimMissionResult, CollectCartResult, CraftResult, DailyClaimResult, DailyMission, DailyMissionType, DailyState, GemType, InventoryItem, ItemStage, WorkshopRecipe, DistributeSkillResult, MineCartUpgrade, MineState, Mission, MissionType, NextMine,
-  MineSlots, OreAmount, OreType, Player, ProductionOption, SetProductionResult, ShardsState, Skill, SkillType, UnlockMineResult, UpgradeCartResult,
+  AttackRequest, AttackResult, ClaimMissionResult, CollectCartResult, Combat, CraftedStage, CraftResult, DailyClaimResult, DailyMission, DailyMissionType, DailyState,
+  DepositsState, Element, GemType, InventoryItem, ItemStage, WorkshopRecipe, DistributeSkillResult, MineCartUpgrade, MineDepositResult, MineState, Mission, MissionType,
+  NextMine, MineSlots, OreAmount, OreInfo, OreType, Player, ProductionOption, RotateDepositResult, SetProductionResult, ShardsState, Skill, SkillType, UnlockMineResult,
+  UpgradeCartResult,
 } from '../models/shards.model';
 import { ShardsApi } from './shards-api';
-import { oreLabel } from '../shared/ore-info';
+import { oreLabel, stageLabel } from '../shared/ore-info';
+export { stageLabel };
 import { describeError } from './shards-errors';
 
 /** Única constante do front: limite de `times` por requisição (contrato, seção 8). */
@@ -20,7 +23,7 @@ export interface MineView extends MineState {
   asOfMs: number;
 }
 
-export type GameTab = 'mines' | 'workshop' | 'progress';
+export type GameTab = 'mines' | 'deposits' | 'workshop' | 'progress';
 
 export interface Notice {
   id: number;
@@ -68,11 +71,22 @@ export class GameStore {
   readonly mineSlots = signal<MineSlots | null>(null);
   readonly cartUpgrades = signal<MineCartUpgrade[]>([]);
   readonly workshop = signal<WorkshopRecipe[]>([]);
+  /** Catálogo de minérios (elemento, ataque e defesa por estágio). Vem do servidor. */
+  readonly ores = signal<OreInfo[]>([]);
+  readonly combat = signal<Combat | null>(null);
+  /** Depósitos da semana; `null` enquanto a skill Workshop está no nível 0 (esconde a seção inteira). */
+  readonly deposits = signal<DepositsState | null>(null);
   /** Inventário completo (todos os estágios); só muda com o craft, então vem de `GET /inventory`. */
   readonly fullInventory = signal<InventoryItem[]>([]);
 
   // ---- Navegação ----
   readonly tab = signal<GameTab>('mines');
+
+  /** Abre a aba de progresso e rola até as habilidades (o bloco só existe nessa aba). */
+  goToSkills(): void {
+    this.tab.set('progress');
+    setTimeout(() => document.getElementById('habilidades')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }
   /** Pontos de habilidade, missões e diárias para resgatar e o baú do dia pronto. */
   readonly progressBadge = computed(() => {
     const d = this.daily();
@@ -82,6 +96,9 @@ export class GameStore {
       (d ? d.missions.filter((m) => m.status === 'Completed').length + (d.chest.canClaim ? 1 : 0) : 0)
     );
   });
+
+  /** Depósitos abertos com a defesa derrubada e estoque: prontos para extrair. */
+  readonly depositsBadge = computed(() => this.deposits()?.items.filter((d) => d.canMine).length ?? 0);
 
   /** Há uma lapidação em andamento (bloqueia só os botões da Oficina; as ações já são serializadas pela fila). */
   readonly crafting = signal(false);
@@ -100,8 +117,9 @@ export class GameStore {
   private chain: Promise<unknown> = Promise.resolve();
   private seq = 0;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
-  /** Dia das diárias que já foi recarregado na virada (evita repetir o `load()` a cada segundo). */
+  /** Dia das diárias e semana dos depósitos já recarregados na virada (evita repetir o `load()` a cada segundo). */
   private rolloverDay: string | null = null;
+  private rolloverWeek: string | null = null;
   private onVisibility = () => {
     if (document.visibilityState === 'visible') void this.load();
   };
@@ -112,17 +130,13 @@ export class GameStore {
   // ---- Derivados ao vivo ----
   readonly energyLive = computed<EnergyLive | null>(() => {
     const p = this.player();
-    if (!p) return null;
-    if (!p.nextEnergyAtUtc) return { energy: p.energy, nextAtMs: null };
+    return p ? regenerate(p.energy, p.maxEnergy, p.secondsPerEnergy, p.nextEnergyAtUtc, this.nowMs()) : null;
+  });
 
-    const next = Date.parse(p.nextEnergyAtUtc);
-    const now = this.nowMs();
-    if (now < next) return { energy: p.energy, nextAtMs: next };
-
-    const stepMs = p.secondsPerEnergy * 1000;
-    const gained = 1 + Math.floor((now - next) / stepMs);
-    const energy = Math.min(p.maxEnergy, p.energy + gained);
-    return { energy, nextAtMs: energy >= p.maxEnergy ? null : next + gained * stepMs };
+  /** Energia de exploração ao vivo (mesma regra da energia normal). */
+  readonly exploreLive = computed<EnergyLive | null>(() => {
+    const p = this.player();
+    return p ? regenerate(p.exploreEnergy, p.exploreMaxEnergy, p.exploreSecondsPerEnergy, p.nextExploreEnergyAtUtc, this.nowMs()) : null;
   });
 
   /** Energia livre para novas minerações (desconta o que já está na fila ou em voo). */
@@ -143,6 +157,18 @@ export class GameStore {
     return this.inventoryMap().get(ore) ?? 0;
   }
 
+  readonly oreMap = computed(() => new Map(this.ores().map((o) => [o.oreType, o] as const)));
+
+  /** Quantas gemas de um estágio o jogador tem (inventário completo, por estágio). */
+  gemQuantity(ore: OreType, stage: ItemStage): number {
+    return this.fullInventory().find((i) => i.oreType === ore && i.stage === stage)?.quantity ?? 0;
+  }
+
+  /** Multiplicador do ataque do elemento `attacker` contra a defesa do `defender` (par ausente vale 1). Só informativo: o servidor calcula o dano. */
+  elementMultiplier(attacker: Element, defender: Element): number {
+    return this.combat()?.effectiveness.find((e) => e.attacker === attacker && e.defender === defender)?.multiplier ?? 1;
+  }
+
   /** Minério estimado no vagonete agora (o servidor arredonda para baixo: mostre "≈"). */
   cartNow(mine: MineView): number {
     const grown = ((this.nowMs() - mine.asOfMs) / 60000) * mine.oresPerMinute;
@@ -154,7 +180,7 @@ export class GameStore {
     if (this.tickTimer) return;
     this.tickTimer = setInterval(() => {
       this.tick.set(Date.now());
-      this.checkDayRollover();
+      this.checkRollovers();
     }, 1000);
     document.addEventListener('visibilitychange', this.onVisibility);
     void this.load();
@@ -166,12 +192,16 @@ export class GameStore {
     document.removeEventListener('visibilitychange', this.onVisibility);
   }
 
-  /** Na virada do dia o servidor só cria as diárias novas no `GET /state`: reconsulta uma vez. */
-  private checkDayRollover(): void {
+  /** Na virada do dia (diárias) ou da semana (ofertas de depósito) o servidor só cria o novo no `GET /state`: reconsulta uma vez. */
+  private checkRollovers(): void {
+    const now = this.nowMs();
     const d = this.daily();
-    if (!d || this.rolloverDay === d.day || this.nowMs() < Date.parse(d.resetsAtUtc)) return;
-    this.rolloverDay = d.day;
-    void this.load();
+    const w = this.deposits();
+    const dayDue = !!d && this.rolloverDay !== d.day && now >= Date.parse(d.resetsAtUtc);
+    const weekDue = !!w && this.rolloverWeek !== w.weekStart && now >= Date.parse(w.resetsAtUtc);
+    if (dayDue) this.rolloverDay = d.day;
+    if (weekDue) this.rolloverWeek = w.weekStart;
+    if (dayDue || weekDue) void this.load();
   }
 
   /** Recarrega o `GET /Shards/state` (na fila, para não correr com ações em andamento). */
@@ -347,6 +377,59 @@ export class GameStore {
     }).finally(() => this.crafting.set(false));
   }
 
+  // ---- Depósitos: aplica a resposta e refaz o state (workshop e `canAfford` dependem do inventário) ----
+
+  rotateDeposit(id: number): Promise<RotateDepositResult | null> {
+    return this.act(async () => {
+      const res = await this.withRetry(() => firstValueFrom(this.api.rotateDeposit(id)));
+      this.inventory.set(res.inventory);
+      this.applyRawToFullInventory(res.inventory);
+      this.deposits.set(res.deposits);
+      await this.fetchState();
+      this.notify('success', res.spent ? `Oferta trocada por ${formatOres([res.spent])}.` : 'Oferta trocada (grátis).');
+      return res;
+    });
+  }
+
+  attackDeposit(id: number, body: AttackRequest): Promise<AttackResult | null> {
+    return this.act(async () => {
+      const res = await this.withRetry(() => firstValueFrom(this.api.attackDeposit(id, { ...body, preview: false })));
+      this.player.set(res.player);
+      this.fullInventory.set(res.inventory.items);
+      this.inventory.set(res.inventory.items.filter((i) => i.stage === 'Raw').map((i) => ({ oreType: i.oreType, quantity: i.quantity })));
+      this.deposits.set(res.deposits);
+      const completed = this.mergeMissions(res.missions);
+      await this.fetchState();
+      const cost = res.energyCost > 0 ? ` O contra-ataque custou ${res.energyCost} de energia de exploração.` : '';
+      this.notify('success', (res.broken ? 'Defesa derrubada! Pronto para extrair.' : `Ataque causou ${res.damageDealt} de dano.`) + cost);
+      this.announceCompleted(completed);
+      return res;
+    });
+  }
+
+  /** Prévia do ataque: não grava nada, então fica fora da fila de ações (quem chama descarta respostas velhas). */
+  previewAttack(id: number, body: AttackRequest): Promise<AttackResult> {
+    return firstValueFrom(this.api.attackDeposit(id, { ...body, preview: true }));
+  }
+
+  mineDeposit(id: number, times: number): Promise<MineDepositResult | null> {
+    return this.act(async () => {
+      const res = await this.withRetry(() => firstValueFrom(this.api.mineDeposit(id, times)));
+      this.player.set(res.player);
+      this.inventory.set(res.inventory);
+      this.applyRawToFullInventory(res.inventory);
+      this.deposits.set(res.deposits);
+      const completed = this.mergeMissions(res.missions);
+      await this.fetchState();
+      const parts = [`Extraído: ${formatOres(res.drops)} (+${res.xpGained} XP).`];
+      if (res.depleted) parts.push('Depósito esgotado.');
+      if (res.levelUp) parts.push('Você subiu de nível!');
+      this.notify('success', parts.join(' '));
+      this.announceCompleted(completed);
+      return res;
+    });
+  }
+
   claimMission(missionType: MissionType): Promise<ClaimMissionResult | null> {
     return this.act(async () => {
       const res = await this.withRetry(() => firstValueFrom(this.api.claimMission(missionType)));
@@ -409,6 +492,10 @@ export class GameStore {
     this.mineSlots.set(s.mineSlots ?? null);
     this.cartUpgrades.set(s.cartUpgrades ?? []);
     this.workshop.set(s.workshop ?? []);
+    this.ores.set(s.ores ?? []);
+    this.combat.set(s.combat ?? null);
+    this.deposits.set(s.deposits ?? null);
+    if (!s.deposits && this.tab() === 'deposits') this.tab.set('mines');
     this.loaded.set(true);
   }
 
@@ -449,6 +536,17 @@ export class GameStore {
     const run = this.chain.then(fn);
     this.chain = run.catch(() => undefined).finally(() => this.queued.update((n) => n - 1));
     return run;
+  }
+
+  /** Trocar e extrair devolvem só o minério bruto: atualiza as linhas `Raw` do inventário completo e mantém os estágios lapidados. */
+  private applyRawToFullInventory(raw: OreAmount[]): void {
+    const order = this.ores().map((o) => o.oreType);
+    const rank = (o: OreType) => (order.includes(o) ? order.indexOf(o) : order.length);
+    const stages: ItemStage[] = ['Raw', 'Polished', 'Faceted'];
+    const rawItems: InventoryItem[] = raw.filter((r) => r.quantity > 0).map((r) => ({ oreType: r.oreType, stage: 'Raw', quantity: r.quantity }));
+    this.fullInventory.update((items) =>
+      [...items.filter((i) => i.stage !== 'Raw'), ...rawItems].sort((a, b) => rank(a.oreType) - rank(b.oreType) || stages.indexOf(a.stage) - stages.indexOf(b.stage)),
+    );
   }
 
   private addToInventory(drops: OreAmount[]): void {
@@ -516,7 +614,17 @@ function newlyCompleted(before: { type: string; status: string }[], changed: { t
   return name;
 }
 
-export const stageLabel = (s: ItemStage): string => ({ Raw: 'Bruto', Polished: 'Polido', Faceted: 'Facetado' })[s];
+/** Energia ao vivo a partir do último valor do servidor e de quando chega o próximo ponto. */
+function regenerate(energy: number, max: number, secondsPer: number, nextAtUtc: string | null, nowMs: number): EnergyLive {
+  if (!nextAtUtc) return { energy, nextAtMs: null };
+  const next = Date.parse(nextAtUtc);
+  if (nowMs < next) return { energy, nextAtMs: next };
+
+  const stepMs = secondsPer * 1000;
+  const gained = 1 + Math.floor((nowMs - next) / stepMs);
+  const live = Math.min(max, energy + gained);
+  return { energy: live, nextAtMs: live >= max ? null : next + gained * stepMs };
+}
 
 function sumOres(base: OreAmount[], extra: OreAmount[]): OreAmount[] {
   const out = base.map((o) => ({ ...o }));

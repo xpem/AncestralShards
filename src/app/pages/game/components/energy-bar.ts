@@ -1,15 +1,15 @@
 import { Component, computed, inject } from '@angular/core';
 import { GameStore } from '../../../services/game.store';
-import { formatDuration } from '../../../shared/format';
+import { energyCaption } from '../../../shared/energy';
 
 @Component({
   selector: 'app-energy-bar',
   template: `
     @if (player(); as p) {
-      <section class="sh-card">
+      <section class="sh-card" data-ui="energy-bar">
         <div class="sh-row">
           <h2 class="sh-title mb-0"><i class="bi bi-lightning-charge energy-icon me-1"></i>Energia</h2>
-          <strong class="sh-count">{{ store.availableEnergy() }}/{{ p.maxEnergy }}</strong>
+          <strong class="sh-count" data-ui="energy-count">{{ store.availableEnergy() }}/{{ p.maxEnergy }}</strong>
         </div>
         <div class="sh-bar" role="progressbar" [attr.aria-valuenow]="store.availableEnergy()" aria-valuemin="0" [attr.aria-valuemax]="p.maxEnergy">
           <div class="sh-bar-fill energy" [style.width.%]="percent()"></div>
@@ -30,12 +30,6 @@ export class EnergyBar {
 
   protected caption = computed(() => {
     const p = this.player();
-    const live = this.store.energyLive();
-    if (!p || !live || live.nextAtMs === null) return 'Energia cheia';
-    const now = this.store.nowMs();
-    const toNext = live.nextAtMs - now;
-    const missingAfterNext = p.maxEnergy - live.energy - 1;
-    const toFull = toNext + missingAfterNext * p.secondsPerEnergy * 1000;
-    return `+1 em ${formatDuration(toNext)} · cheia em ${formatDuration(toFull)}`;
+    return p ? energyCaption(this.store.energyLive(), p.maxEnergy, p.secondsPerEnergy, this.store.nowMs()) : '';
   });
 }

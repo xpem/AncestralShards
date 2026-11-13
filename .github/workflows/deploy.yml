@@ -1,0 +1,40 @@
+name: Marte GitTea Deploy AncestralShards local
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+env:
+  BUILD_DIR: dist/ancestral-shards/browser
+  DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true && !contains(github.server_url, 'github.com')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build -- --configuration production
+
+      - name: Deploy files
+        run: |
+          test -n "${{ env.DEPLOY_DIR }}"
+          rm -rf ${{ env.DEPLOY_DIR }}/*
+          cp -r ${{ env.BUILD_DIR }}/* ${{ env.DEPLOY_DIR }}/
+          chown -R xpemdev:xpemdev ${{ env.DEPLOY_DIR }}

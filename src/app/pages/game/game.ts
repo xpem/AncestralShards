@@ -1,8 +1,9 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { GameStore, GameTab } from '../../services/game.store';
 import { oreLabel } from '../../shared/ore-info';
 import { DailyPanel } from './components/daily-panel';
+import { DepositsPanel } from './components/deposits-panel';
 import { EnergyBar } from './components/energy-bar';
 import { NextMine } from './components/next-mine';
 import { Skills } from './components/skills';
@@ -14,18 +15,20 @@ import { Toast } from './components/toast';
 
 @Component({
   selector: 'app-game',
-  imports: [DailyPanel, EnergyBar, Inventory, MineCard, MissionList, NextMine, Skills, Toast, Workshop],
+  imports: [DailyPanel, DepositsPanel, EnergyBar, Inventory, MineCard, MissionList, NextMine, Skills, Toast, Workshop],
   templateUrl: './game.html',
   styleUrl: './game.css',
 })
 export class Game implements OnInit, OnDestroy {
   protected auth = inject(AuthService);
   protected store = inject(GameStore);
-  protected readonly tabs: { id: GameTab; label: string; icon: string }[] = [
+  /** A aba de depósitos só existe depois que o servidor libera `state.deposits` (skill Workshop). */
+  protected readonly tabs = computed<{ id: GameTab; label: string; icon: string }[]>(() => [
     { id: 'mines', label: 'Minas', icon: 'bi-minecart-loaded' },
+    ...(this.store.deposits() ? [{ id: 'deposits' as const, label: 'Depósitos', icon: 'bi-box-seam' }] : []),
     { id: 'workshop', label: 'Oficina', icon: 'bi-gem' },
     { id: 'progress', label: 'Progresso', icon: 'bi-trophy' },
-  ];
+  ]);
 
   protected xpPercent(): number {
     const p = this.store.player();

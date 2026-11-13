@@ -1,10 +1,10 @@
-<div class="sh-page">
-  <header class="sh-header">
+<div class="sh-page" data-ui="game-page">
+  <header class="sh-header" data-ui="game-header">
     @if (store.player(); as p) {
-      <span class="sh-level-badge" aria-hidden="true">{{ p.level }}</span>
+      <span class="sh-level-badge" aria-hidden="true" data-ui="game-level-badge">{{ p.level }}</span>
       <div class="sh-level-info">
         <div class="sh-level">Nível {{ p.level }}</div>
-        <div class="sh-xp">
+        <div class="sh-xp" data-ui="game-xp">
           <div class="sh-bar thin sh-xp-bar" role="progressbar" aria-label="Experiência" [attr.aria-valuenow]="xpPercent()" aria-valuemin="0" aria-valuemax="100">
             <div class="sh-bar-fill energy" [style.width.%]="xpPercent()"></div>
           </div>
@@ -12,34 +12,34 @@
         </div>
       </div>
       @if (p.skillPoints > 0) {
-        <span class="sh-tag ok" title="Pontos de habilidade">{{ p.skillPoints }} pt</span>
+        <span class="sh-tag ok" title="Pontos de habilidade" data-ui="game-skill-points">{{ p.skillPoints }} pt</span>
       }
     } @else {
       <div class="sh-level">Ancestral Shards</div>
     }
-    <button type="button" class="sh-icon-btn" aria-label="Sair" title="Sair" (click)="auth.expireSession()">
+    <button type="button" class="sh-icon-btn" aria-label="Sair" title="Sair" data-ui="game-logout-btn" (click)="auth.expireSession()">
       <i class="bi bi-box-arrow-right"></i>
     </button>
   </header>
 
   @if (!store.loaded()) {
-    <div class="sh-loading"><span class="spinner-border spinner-border-sm me-2"></span>Carregando...</div>
+    <div class="sh-loading" data-ui="game-loading"><span class="spinner-border spinner-border-sm me-2"></span>Carregando...</div>
   } @else {
-    <main class="sh-main">
+    <main class="sh-main" data-ui="game-main">
       @switch (store.tab()) {
         @case ('mines') {
-          <div class="sh-grid sh-top">
+          <div class="sh-grid sh-top" data-ui="mines-top">
             <app-energy-bar />
             <app-inventory />
           </div>
 
           @if (store.mineSlots(); as ms) {
-            <p class="sh-muted mb-0" title="Minas usadas / espaços de mina">
+            <p class="sh-muted mb-0" title="Minas usadas / espaços de mina" data-ui="mines-slots">
               <i class="bi bi-minecart-loaded"></i> Minas {{ ms.used }}/{{ ms.total }}
             </p>
           }
 
-          <div class="sh-grid sh-mines">
+          <div class="sh-grid sh-mines" data-ui="mines-grid">
             @for (mine of store.mines(); track mine.mineNumber) {
               <app-mine-card [mine]="mine" />
             }
@@ -47,15 +47,18 @@
           </div>
 
           @if (store.lastMine()) {
-            <p class="sh-summary" role="status">{{ summary() }}</p>
+            <p class="sh-summary" role="status" data-ui="mines-summary">{{ summary() }}</p>
           }
+        }
+        @case ('deposits') {
+          <app-deposits-panel />
         }
         @case ('workshop') {
           <app-workshop />
         }
         @case ('progress') {
           <app-daily-panel />
-          <div class="sh-grid sh-pair">
+          <div class="sh-grid sh-pair" data-ui="progress-grid">
             <app-mission-list />
             <app-skills />
           </div>
@@ -63,14 +66,17 @@
       }
     </main>
 
-    <nav class="sh-tabs" aria-label="Seções do jogo">
-      @for (t of tabs; track t.id) {
-        <button type="button" class="sh-tab" [class.active]="store.tab() === t.id"
+    <nav class="sh-tabs" aria-label="Seções do jogo" data-ui="game-tabs" [style.--tabs]="tabs().length">
+      @for (t of tabs(); track t.id) {
+        <button type="button" class="sh-tab" [class.active]="store.tab() === t.id" [attr.data-ui]="'tab-' + t.id"
                 [attr.aria-current]="store.tab() === t.id ? 'page' : null" (click)="store.tab.set(t.id)">
           <i class="bi" [class]="t.icon"></i>
           <span>{{ t.label }}</span>
           @if (t.id === 'progress' && store.progressBadge() > 0) {
-            <span class="sh-badge" [attr.aria-label]="store.progressBadge() + ' pendentes'">{{ store.progressBadge() }}</span>
+            <span class="sh-badge" [attr.aria-label]="store.progressBadge() + ' pendentes'" data-ui="tab-progress-badge">{{ store.progressBadge() }}</span>
+          }
+          @if (t.id === 'deposits' && store.depositsBadge() > 0) {
+            <span class="sh-badge" [attr.aria-label]="store.depositsBadge() + ' prontos para extrair'" data-ui="tab-deposits-badge">{{ store.depositsBadge() }}</span>
           }
         </button>
       }

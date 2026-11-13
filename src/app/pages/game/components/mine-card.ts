@@ -1,17 +1,17 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { formatOres, GameStore, MineView } from '../../../services/game.store';
 import { formatDuration } from '../../../shared/format';
-import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
+import { oreColor, oreLabel } from '../../../shared/ore-info';
 import { ProductionPanel } from './production-panel';
 
 @Component({
   selector: 'app-mine-card',
   imports: [ProductionPanel],
   template: `
-    <section class="sh-card mine-card" [style.--ore]="oreColor()">
+    <section class="sh-card mine-card" [style.--ore]="oreColor()" [attr.data-ui]="'mine-card-' + mine().mineNumber">
       <div class="sh-row">
         <h2 class="sh-title mb-0">Mina {{ mine().mineNumber }}</h2>
-        <button type="button" class="sh-tag sh-tag-btn" [attr.aria-expanded]="showProduction()" (click)="showProduction.set(!showProduction())">
+        <button type="button" class="sh-tag sh-tag-btn" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-production-btn'" [attr.aria-expanded]="showProduction()" (click)="showProduction.set(!showProduction())">
           {{ production() }} <i class="bi" [class.bi-chevron-down]="!showProduction()" [class.bi-chevron-up]="showProduction()"></i>
         </button>
       </div>
@@ -20,7 +20,7 @@ import { ProductionPanel } from './production-panel';
         <app-production-panel [mine]="mine()" (done)="showProduction.set(false)" />
       }
 
-      <div class="sh-row mt-3">
+      <div class="sh-row mt-3" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-cart'">
         <span class="sh-muted">Vagonete</span>
         <strong class="mine-count">≈ {{ cart() }} / {{ mine().cartCapacity }}</strong>
       </div>
@@ -29,12 +29,12 @@ import { ProductionPanel } from './production-panel';
       </div>
       <small class="sh-muted">{{ cartCaption() }}</small>
 
-      <div class="mine-upgrade">
+      <div class="mine-upgrade" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-upgrade'">
         <div class="sh-row">
           <span class="mine-upgrade-title">Vagonete <b>nv. {{ mine().cartLevel }}</b></span>
           @if (upgrade(); as up) {
             @if (up.next) {
-              <button type="button" class="sh-btn-ghost" [disabled]="!canUpgrade() || store.busy()"
+              <button type="button" class="sh-btn-ghost" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-upgrade-btn'" [disabled]="!canUpgrade() || store.busy()"
                       (click)="store.upgradeCart(mine().mineNumber)">
                 <i class="bi bi-arrow-up-circle"></i> Ampliar
               </button>
@@ -50,7 +50,7 @@ import { ProductionPanel } from './production-panel';
           @if (!next.skillAllows) {
             <small class="sh-muted d-block">
               Use um ponto de habilidade em Vagonete para liberar este nível.
-              <a href="#habilidades" (click)="goToSkills($event)">Ver habilidades</a>
+              <a href="#habilidades" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-skills-link'" (click)="goToSkills($event)">Ver habilidades</a>
             </small>
           } @else if (!next.canAfford) {
             <small class="sh-short d-block">Faltam {{ missingText() }}.</small>
@@ -58,14 +58,14 @@ import { ProductionPanel } from './production-panel';
         }
       </div>
 
-      <div class="sh-actions">
-        <button type="button" class="sh-btn" [disabled]="store.availableEnergy() < 1" (click)="store.mine(mine().mineNumber)">
+      <div class="sh-actions" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-actions'">
+        <button type="button" class="sh-btn" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-mine-btn'" [disabled]="store.availableEnergy() < 1" (click)="store.mine(mine().mineNumber)">
           <i class="bi bi-hammer"></i> Minerar
         </button>
-        <button type="button" class="sh-btn sh-btn-x10" [disabled]="store.availableEnergy() < 1" (click)="store.mine(mine().mineNumber, 10)">
+        <button type="button" class="sh-btn sh-btn-x10" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-mine-x10-btn'" [disabled]="store.availableEnergy() < 1" (click)="store.mine(mine().mineNumber, 10)">
           ×10
         </button>
-        <button type="button" class="sh-btn sh-btn-alt" [disabled]="cart() < 1 || store.busy()" (click)="store.collectCart(mine().mineNumber)">
+        <button type="button" class="sh-btn sh-btn-alt" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-collect-btn'" [disabled]="cart() < 1 || store.busy()" (click)="store.collectCart(mine().mineNumber)">
           <i class="bi bi-box-seam"></i> Coletar
         </button>
       </div>
@@ -77,7 +77,7 @@ export class MineCard {
   readonly mine = input.required<MineView>();
   protected showProduction = signal(false);
 
-  protected oreColor = computed(() => ORE_INFO[this.mine().production]?.color ?? 'var(--line-2)');
+  protected oreColor = computed(() => oreColor(this.mine().production));
   protected production = computed(() => oreLabel(this.mine().production));
   protected cart = computed(() => this.store.cartNow(this.mine()));
   protected percent = computed(() => {
@@ -101,7 +101,7 @@ export class MineCard {
 
   protected goToSkills(ev: Event): void {
     ev.preventDefault();
-    document.getElementById('habilidades')?.scrollIntoView({ behavior: 'smooth' });
+    this.store.goToSkills();
   }
 
   protected cartCaption = computed(() => {

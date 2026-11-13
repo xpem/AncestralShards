@@ -4,15 +4,17 @@ import { GameStore } from '../../../services/game.store';
 import { oreLabel } from '../../../shared/ore-info';
 
 const SKILL_POINT_MISSIONS: MissionType[] = ['CartTraining', 'OpenWorkshop', 'DoubleLuck'];
+/** Missões que se cumprem na aba de depósitos. */
+const DEPOSIT_MISSIONS: MissionType[] = ['FirstAttack', 'VaultOpened', 'Extractor'];
 
 @Component({
   selector: 'app-mission-list',
   template: `
     @if (store.missions().length > 0) {
-      <section class="sh-card sh-plate">
+      <section class="sh-card sh-plate" data-ui="mission-list">
         <h2 class="sh-title"><i class="bi bi-trophy me-2"></i>Missões</h2>
         @for (m of store.missions(); track m.type) {
-          <article class="sh-quest" [class.done]="m.status === 'Completed'">
+          <article class="sh-quest" [attr.data-ui]="'mission-' + m.type" [class.done]="m.status === 'Completed'">
             <div class="sh-row">
               <h3 class="sh-quest-title">{{ m.name }}</h3>
               @if (m.status === 'Completed') {
@@ -28,9 +30,12 @@ const SKILL_POINT_MISSIONS: MissionType[] = ['CartTraining', 'OpenWorkshop', 'Do
             @if (needsSkillPoint(m)) {
               <small class="sh-muted d-block">Suba de nível para ganhar um ponto de habilidade</small>
             }
+            @if (goesToDeposits(m)) {
+              <button type="button" class="sh-link d-block mb-1" [attr.data-ui]="'mission-' + m.type + '-deposits-link'" (click)="store.tab.set('deposits')">Ir aos depósitos</button>
+            }
             <small class="sh-reward"><i class="bi bi-stars"></i> Recompensa: {{ reward(m.reward) }}</small>
             @if (m.status === 'Completed') {
-              <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [disabled]="store.busy()" (click)="store.claimMission(m.type)">
+              <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [attr.data-ui]="'mission-' + m.type + '-claim-btn'" [disabled]="store.busy()" (click)="store.claimMission(m.type)">
                 <i class="bi bi-gift"></i> Resgatar
               </button>
             }
@@ -50,6 +55,10 @@ export class MissionList {
   /** Missões que exigem gastar um ponto de habilidade. */
   protected needsSkillPoint(m: Mission): boolean {
     return m.status === 'Active' && SKILL_POINT_MISSIONS.includes(m.type) && this.store.player()?.skillPoints === 0;
+  }
+
+  protected goesToDeposits(m: Mission): boolean {
+    return m.status === 'Active' && DEPOSIT_MISSIONS.includes(m.type) && !!this.store.deposits();
   }
 
   protected reward(r: MissionReward): string {

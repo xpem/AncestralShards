@@ -8,14 +8,14 @@ import { oreLabel } from '../../../shared/ore-info';
   selector: 'app-daily-panel',
   template: `
     @if (store.daily(); as d) {
-      <section class="sh-card sh-plate">
+      <section class="sh-card sh-plate" data-ui="daily-panel">
         <div class="sh-row">
           <h2 class="sh-title"><i class="bi bi-calendar-check me-2"></i>Missões do dia</h2>
-          <span class="sh-muted" title="Tempo até o próximo dia">
+          <span class="sh-muted" title="Tempo até o próximo dia" data-ui="daily-countdown">
             <i class="bi bi-hourglass-split"></i> {{ countdown() }}
           </span>
         </div>
-        <p class="sh-muted mb-2">
+        <p class="sh-muted mb-2" data-ui="daily-streak">
           @if (d.streak.days > 0) {
             🔥 {{ d.streak.days }}/{{ d.streak.cycleDays }}
           } @else {
@@ -24,7 +24,7 @@ import { oreLabel } from '../../../shared/ore-info';
         </p>
 
         @for (m of d.missions; track m.type) {
-          <article class="sh-quest" [class.done]="m.status === 'Completed'" [style.opacity]="m.status === 'Claimed' ? 0.55 : null">
+          <article class="sh-quest" [attr.data-ui]="'daily-mission-' + m.type" [class.done]="m.status === 'Completed'" [style.opacity]="m.status === 'Claimed' ? 0.55 : null">
             <div class="sh-row">
               <h3 class="sh-quest-title">{{ m.name }}</h3>
               @if (m.status === 'Claimed') {
@@ -43,14 +43,14 @@ import { oreLabel } from '../../../shared/ore-info';
             }
             <small class="sh-reward"><i class="bi bi-stars"></i> Recompensa: {{ reward(m.reward) }}</small>
             @if (m.status === 'Completed') {
-              <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [disabled]="store.busy()" (click)="store.claimDaily(m.type)">
+              <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [attr.data-ui]="'daily-mission-' + m.type + '-claim-btn'" [disabled]="store.busy()" (click)="store.claimDaily(m.type)">
                 <i class="bi bi-gift"></i> Resgatar
               </button>
             }
           </article>
         }
 
-        <article class="sh-quest" [class.done]="d.chest.canClaim">
+        <article class="sh-quest" data-ui="daily-chest" [class.done]="d.chest.canClaim">
           <div class="sh-row">
             <h3 class="sh-quest-title"><i class="bi bi-box2-heart me-1"></i>Baú do dia</h3>
             @if (d.chest.claimed) {
@@ -67,7 +67,7 @@ import { oreLabel } from '../../../shared/ore-info';
             }
           </small>
           @if (!d.chest.claimed) {
-            <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [disabled]="store.busy() || !d.chest.canClaim"
+            <button type="button" class="sh-btn sh-btn-alt sh-btn-block" data-ui="daily-chest-claim-btn" [disabled]="store.busy() || !d.chest.canClaim"
                     (click)="store.claimDailyChest()">
               <i class="bi bi-box2-heart"></i> Abrir baú
             </button>

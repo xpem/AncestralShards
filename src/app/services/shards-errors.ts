@@ -1,8 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ShardsError } from '../models/shards.model';
+import { SHARDS_ERROR_CODES, ShardsError, ShardsErrorCode } from '../models/shards.model';
 
 /** Mapa único `code` → texto amigável (contrato, seção 5). */
-const MESSAGES: Record<string, string> = {
+/** `Record<ShardsErrorCode, …>`: o compilador exige texto para todo código do contrato. */
+const MESSAGES: Record<ShardsErrorCode, string> = {
   PlayerNotFound: 'Jogador não encontrado.',
   MineNotFound: 'Você ainda não tem esta mina.',
   NotEnoughEnergy: 'Energia insuficiente.',
@@ -30,7 +31,23 @@ const MESSAGES: Record<string, string> = {
   ChestNotReady: 'Resgate todas as missões do dia para abrir o baú.',
   ChestAlreadyClaimed: 'O baú de hoje já foi resgatado.',
   ConcurrencyConflict: 'Tente novamente.',
+  DepositNotFound: 'Depósito não encontrado.',
+  DepositNotRotatable: 'Só um depósito intocado pode ser trocado.',
+  DepositExpired: 'Esta oferta expirou: uma nova semana começou.',
+  DepositDefenseBroken: 'A defesa deste depósito já foi derrubada. Pode extrair.',
+  DepositDepleted: 'Este depósito já se esgotou.',
+  TooManyOpenDeposits: 'Você já tem o máximo de depósitos abertos. Esgote um antes de atacar outro.',
+  NotEnoughExploreEnergy: 'Energia de exploração insuficiente. Leve gemas de defesa ou espere regenerar.',
+  InvalidAttack: 'Ataque inválido: escolha gemas atacantes que causem dano.',
+  DepositDefenseActive: 'Derrube a defesa do depósito antes de extrair.',
 };
+
+const isKnownCode = (code: string): code is ShardsErrorCode => (SHARDS_ERROR_CODES as readonly string[]).includes(code);
+
+/** Texto amigável para um código do servidor (erro ou `blocker` da prévia); código desconhecido volta como veio. */
+export function messageForCode(code: string, fallback?: string): string {
+  return isKnownCode(code) ? MESSAGES[code] : (fallback ?? 'Não foi possível concluir a ação.');
+}
 
 export interface DescribedError {
   status: number;
@@ -52,7 +69,7 @@ export function describeError(err: unknown): DescribedError {
 
   if (isShardsError(err.error)) {
     const { code, message } = err.error;
-    return { status, code, message: MESSAGES[code] ?? message ?? 'Não foi possível concluir a ação.' };
+    return { status, code, message: messageForCode(code, message) };
   }
   // 400 sem `code` é do ASP.NET (JSON malformado): pedido inválido.
   if (status === 400) return { status, code: null, message: 'Pedido inválido.' };

@@ -1,9 +1,9 @@
 import { Component, OnInit, computed, inject } from '@angular/core';
-import { GemType, ItemStage, OreAmount, OreType, WorkshopGem, WorkshopRecipe } from '../../../models/shards.model';
+import { CraftedStage, GemType, ItemStage, OreAmount, OreType, WorkshopGem, WorkshopRecipe } from '../../../models/shards.model';
 import { GameStore, MAX_TIMES, stageLabel } from '../../../services/game.store';
-import { ORE_INFO, oreLabel } from '../../../shared/ore-info';
+import { ElementLook, elementLook, oreColor, oreLabel } from '../../../shared/ore-info';
 
-type Crafted = Exclude<ItemStage, 'Raw'>;
+type Crafted = CraftedStage;
 const STAGES: ItemStage[] = ['Raw', 'Polished', 'Faceted'];
 
 /** Por que o botão está desabilitado (ou `null` se pode lapidar). */
@@ -16,15 +16,15 @@ interface Check {
 @Component({
   selector: 'app-workshop',
   template: `
-    <section class="sh-card sh-plate" id="oficina">
+    <section class="sh-card sh-plate" id="oficina" data-ui="workshop">
       <h2 class="sh-title">Gemas</h2>
       @if (rows().length === 0) {
-        <p class="sh-muted">Nenhuma gema ainda.</p>
+        <p class="sh-muted" data-ui="workshop-empty">Nenhuma gema ainda.</p>
       } @else {
-        <ul class="sh-chips">
+        <ul class="sh-chips" data-ui="workshop-gems">
           @for (row of rows(); track row.ore) {
-            <li class="sh-chip">
-              <span class="sh-dot" [style.background]="info[row.ore].color"></span>
+            <li class="sh-chip" [attr.data-ui]="'workshop-gem-' + row.ore">
+              <span class="sh-dot" [style.background]="color(row.ore)"></span>
               {{ label(row.ore) }}
               @for (c of row.cells; track c.stage) {
                 <small class="sh-muted">{{ stageName(c.stage) }}</small> <strong>{{ c.quantity }}</strong>
@@ -34,13 +34,13 @@ interface Check {
         </ul>
       }
 
-      <div class="sh-grid sh-pair mt-3">
+      <div class="sh-grid sh-pair mt-3" data-ui="workshop-recipes">
         @for (r of store.workshop(); track r.stage) {
-          <article class="sh-recipe">
+          <article class="sh-recipe" [attr.data-ui]="'workshop-recipe-' + r.stage">
             <div class="sh-row">
               <h3 class="sh-recipe-title">{{ stageName(r.stage) }}</h3>
               @if (!r.skillAllows) {
-                <button type="button" class="sh-tag sh-tag-btn sh-tag-lock" title="Ir às habilidades" (click)="store.tab.set('progress')">
+                <button type="button" class="sh-tag sh-tag-btn sh-tag-lock" title="Ir às habilidades" [attr.data-ui]="'workshop-recipe-' + r.stage + '-lock-btn'" (click)="store.tab.set('progress')">
                   <i class="bi bi-lock"></i> Oficina nv. {{ r.level }}
                 </button>
               }
@@ -50,17 +50,22 @@ interface Check {
             </p>
             @for (g of r.gems; track g.oreType) {
               @let c = check(r, g);
-              <div class="sh-craft">
+              <div class="sh-craft" [attr.data-ui]="'workshop-craft-' + r.stage + '-' + g.oreType">
                 <div class="sh-row">
                   <span class="d-flex align-items-center gap-2">
-                    <span class="sh-gem" [style.background]="info[g.oreType].color"></span>
+                    <span class="sh-gem" [style.background]="color(g.oreType)"></span>
                     <strong>{{ label(g.oreType) }}</strong>
                     <span class="sh-muted">({{ g.available }})</span>
+                    @if (stats(g.oreType, r.stage); as st) {
+                      <small class="sh-muted" [attr.data-ui]="'workshop-craft-' + r.stage + '-' + g.oreType + '-stats'" [title]="'Elemento ' + st.look.label + ' · ataque ' + st.attack + ' · defesa ' + st.defense">
+                        <i class="bi" [class]="st.look.icon" [style.color]="st.look.color"></i> Atq {{ st.attack }} · Def {{ st.defense }}
+                      </small>
+                    }
                   </span>
                   <span class="d-flex align-items-center gap-1">
-                    <button type="button" class="sh-btn sh-btn-sm" [disabled]="c.reason !== null"
+                    <button type="button" class="sh-btn sh-btn-sm" [attr.data-ui]="'workshop-craft-' + r.stage + '-' + g.oreType + '-btn'" [disabled]="c.reason !== null"
                             (click)="craft(r, g, 1)">Lapidar</button>
-                    <button type="button" class="sh-btn sh-btn-sm" [disabled]="batch(r, g).reason !== null"
+                    <button type="button" class="sh-btn sh-btn-sm" [attr.data-ui]="'workshop-craft-' + r.stage + '-' + g.oreType + '-batch-btn'" [disabled]="batch(r, g).reason !== null"
                             [attr.aria-label]="'Lapidar ' + batchSize + ' vezes'" (click)="craft(r, g, batchSize)">×{{ batchSize }}</button>
                   </span>
                 </div>
@@ -82,7 +87,7 @@ interface Check {
 })
 export class Workshop implements OnInit {
   protected store = inject(GameStore);
-  protected info = ORE_INFO;
+  protected color = oreColor;
   protected label = oreLabel;
   protected stageName = stageLabel;
   /** Tamanho do lote do botão ×N (apresentação; o limite real de `times` é MAX_TIMES). */
@@ -91,12 +96,22 @@ export class Workshop implements OnInit {
   protected rows = computed(() => {
     const by = new Map<OreType, { stage: ItemStage; quantity: number }[]>();
     for (const it of this.store.fullInventory()) {
-      // Minérios fora do enum conhecido (ex.: dados antigos com valores sem uso) não têm como ser exibidos.
-      if (!(it.oreType in ORE_INFO) || !STAGES.includes(it.stage)) continue;
+      if (!STAGES.includes(it.stage)) continue;
       by.set(it.oreType, [...(by.get(it.oreType) ?? []), { stage: it.stage, quantity: it.quantity }]);
     }
     return [...by].map(([ore, cells]) => ({ ore, cells: cells.sort((a, b) => STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage)) }));
   });
+
+  /** Elemento, ataque e defesa da gema no estágio produzido (do catálogo do servidor). */
+  protected stats(ore: OreType, stage: Crafted): { look: ElementLook; attack: number; defense: number } | null {
+    const info = this.store.oreMap().get(ore);
+    if (!info) return null;
+    return {
+      look: elementLook(info.element),
+      attack: info.attack.find((a) => a.stage === stage)?.attack ?? 0,
+      defense: info.defense.find((d) => d.stage === stage)?.defense ?? 0,
+    };
+  }
 
   ngOnInit(): void {
     void this.store.loadFullInventory();
