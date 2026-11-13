@@ -9,6 +9,7 @@ o jogador não é levado a essas telas. As missões já funcionam como tutorial;
 
 ## Novas missões (anexar ao fim de `MissionCatalog.All`, nesta ordem)
 
+
 | # | `MissionType` | Nome | Descrição | Goal | Condição "já satisfeita" | Avança em |
 |---|---|---|---|---|---|---|
 | 5 | `CartTraining` | Treinamento de Vagonete | Use um ponto de habilidade em Vagonete. | 1 | skill `CartCapacity` com `Level > 0` | `skills/distribute` com `CartCapacity` |
