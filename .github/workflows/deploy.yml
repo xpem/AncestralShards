@@ -9,7 +9,7 @@ on:
 
 env:
   BUILD_DIR: dist/ancestral-shards/browser
-  DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+  DEPLOY_DIR: /var/www/ancestralshards
 
 jobs:
   deploy:
@@ -35,6 +35,7 @@ jobs:
       - name: Deploy files
         run: |
           test -n "${{ env.DEPLOY_DIR }}"
-          rm -rf ${{ env.DEPLOY_DIR }}/*
-          cp -r ${{ env.BUILD_DIR }}/* ${{ env.DEPLOY_DIR }}/
-          chown -R xpemdev:xpemdev ${{ env.DEPLOY_DIR }}
+          mkdir -p "${{ env.DEPLOY_DIR }}"
+          rm -rf "${{ env.DEPLOY_DIR }}"/*
+          cp -r ${{ env.BUILD_DIR }}/* "${{ env.DEPLOY_DIR }}"/
+          chown -R xpemdev:xpemdev "${{ env.DEPLOY_DIR }}"
