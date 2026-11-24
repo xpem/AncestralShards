@@ -59,10 +59,10 @@ import { ProductionPanel } from './production-panel';
       </div>
 
       <div class="sh-actions" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-actions'">
-        <button type="button" class="sh-btn" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-mine-btn'" [disabled]="store.availableEnergy() < 1" (click)="store.mine(mine().mineNumber)">
+        <button type="button" class="sh-btn" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-mine-btn'" [disabled]="!canMine()" (click)="store.mine(mine().mineNumber)">
           <i class="bi bi-hammer"></i> Minerar
         </button>
-        <button type="button" class="sh-btn sh-btn-x10" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-mine-x10-btn'" [disabled]="store.availableEnergy() < 1" (click)="store.mine(mine().mineNumber, 10)">
+        <button type="button" class="sh-btn sh-btn-x10" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-mine-x10-btn'" [disabled]="!canMine()" (click)="store.mine(mine().mineNumber, 10)">
           ×10
         </button>
         <button type="button" class="sh-btn sh-btn-alt" [attr.data-ui]="'mine-card-' + mine().mineNumber + '-collect-btn'" [disabled]="cart() < 1 || store.busy()" (click)="store.collectCart(mine().mineNumber)">
@@ -85,6 +85,9 @@ export class MineCard {
     return cap > 0 ? (this.cart() / cap) * 100 : 0;
   });
 
+  /** Minerar enche o vagonete: sem espaço, só depois de coletar. */
+  protected canMine = computed(() => this.store.availableEnergy() >= 1 && this.store.cartSpace(this.mine()) >= 1);
+
   protected upgrade = computed(() => this.store.cartUpgrades().find((u) => u.mineNumber === this.mine().mineNumber) ?? null);
   protected canUpgrade = computed(() => {
     const next = this.upgrade()?.next;
@@ -106,7 +109,7 @@ export class MineCard {
 
   protected cartCaption = computed(() => {
     const m = this.mine();
-    if (this.cart() >= m.cartCapacity) return 'Vagonete cheio: a mineração automática está parada.';
+    if (this.cart() >= m.cartCapacity) return 'Vagonete cheio: colete para minerar e para a mina voltar a produzir.';
     if (!m.cartFullAtUtc) return 'Esta mina não produz sozinha.';
     return `Enche em ${formatDuration(Date.parse(m.cartFullAtUtc) - this.store.nowMs())}`;
   });

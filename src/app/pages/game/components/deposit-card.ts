@@ -1,9 +1,9 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
-import { Deposit, Drop, ItemStage, OreType } from '../../../models/shards.model';
+import { Deposit, ItemStage, OreType } from '../../../models/shards.model';
 import { formatOres, GameStore, MAX_TIMES } from '../../../services/game.store';
 import { depositStatusLabel, tierLabel } from '../../../shared/deposit-info';
 import { formatDuration } from '../../../shared/format';
-import { elementLook, oreLabel, stageLabel } from '../../../shared/ore-info';
+import { elementLook, oreColor, oreLabel, stageLabel } from '../../../shared/ore-info';
 
 /** Cartão de um depósito: elemento, defesa, estoque e as ações que o estado dele permite (trocar, atacar, extrair). */
 @Component({
@@ -12,10 +12,13 @@ import { elementLook, oreLabel, stageLabel } from '../../../shared/ore-info';
     <section class="sh-card sh-dep" [class.sh-dep-done]="deposit().status === 'Depleted'" [style.--el]="element().color" [attr.data-ui]="'deposit-card-' + deposit().id">
       <div class="sh-row">
         <h3 class="sh-title mb-0" [attr.data-ui]="'deposit-card-' + deposit().id + '-title'">
-          <i class="bi" [class]="element().icon" [style.color]="element().color"></i> {{ element().label }}
+          <span class="sh-gem me-1" [style.background]="oreColor()"></span>{{ oreName() }}
         </h3>
         <span class="d-flex gap-1">
-          <span class="sh-tag" [attr.data-ui]="'deposit-card-' + deposit().id + '-tier'">{{ tier() }}</span>
+          <span class="sh-tag" [attr.data-ui]="'deposit-card-' + deposit().id + '-element'" [title]="'Elemento ' + element().label">
+            <i class="bi" [class]="element().icon" [style.color]="element().color"></i> {{ element().label }}
+          </span>
+          <span class="sh-tag" [attr.data-ui]="'deposit-card-' + deposit().id + '-tier'" [title]="'Raridade ' + deposit().rarity">{{ tier() }}</span>
           <span class="sh-tag" [class.ok]="deposit().status === 'Open'" [attr.data-ui]="'deposit-card-' + deposit().id + '-status'">{{ status() }}</span>
         </span>
       </div>
@@ -36,7 +39,9 @@ import { elementLook, oreLabel, stageLabel } from '../../../shared/ore-info';
         <div class="sh-bar-fill stock" [style.width.%]="percent(deposit().stockRemaining, deposit().stockMax)"></div>
       </div>
 
-      <small class="sh-muted d-block" [attr.data-ui]="'deposit-card-' + deposit().id + '-drops'">Rende: {{ drops() }}</small>
+      <small class="sh-muted d-block" [attr.data-ui]="'deposit-card-' + deposit().id + '-yield'">
+        Rende {{ deposit().unitsPerEnergy }} {{ oreName() }} por ponto de energia (+{{ deposit().xpPerEnergy }} XP)
+      </small>
       @if (deposit().expiresAtUtc; as exp) {
         <small class="sh-muted d-block" [attr.data-ui]="'deposit-card-' + deposit().id + '-expires'">Expira em {{ countdown(exp) }}</small>
       }
@@ -78,7 +83,7 @@ import { elementLook, oreLabel, stageLabel } from '../../../shared/ore-info';
         <div class="sh-dep-extract" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract'">
           <div class="sh-row">
             <span class="sh-tag ok">Pronto para extrair</span>
-            <span class="d-flex align-items-center gap-1">
+            <span class="d-flex align-items-center gap-1" title="Pontos de energia de exploração">
               <button type="button" class="sh-btn sh-btn-sm sh-btn-square" aria-label="Menos" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract-minus-btn'" [disabled]="quantity() <= 1" (click)="step(-1)">−</button>
               <strong class="sh-dep-qty" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract-qty'">{{ quantity() }}</strong>
               <button type="button" class="sh-btn sh-btn-sm sh-btn-square" aria-label="Mais" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract-plus-btn'" [disabled]="quantity() >= max()" (click)="step(1)">+</button>
@@ -86,20 +91,25 @@ import { elementLook, oreLabel, stageLabel } from '../../../shared/ore-info';
             </span>
           </div>
           <button type="button" class="sh-btn sh-btn-alt sh-btn-block" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract-btn'" [disabled]="max() < 1 || store.busy()" (click)="extract()">
-            <i class="bi bi-gem"></i> Extrair {{ quantity() }}
+            <i class="bi bi-gem"></i> Extrair {{ quantity() }} {{ quantity() === 1 ? 'ponto' : 'pontos' }}
           </button>
           @if (max() < 1) {
-            <small class="sh-short d-block mt-1">Energia de exploração insuficiente.</small>
+            <small class="sh-short d-block mt-1" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract-note'">Energia de exploração insuficiente.</small>
           } @else {
-            <small class="sh-muted d-block mt-1">Custo: {{ cost() }} de energia de exploração (máx. {{ max() }})</small>
+            <small class="sh-muted d-block mt-1" [attr.data-ui]="'deposit-card-' + deposit().id + '-extract-note'">
+              Gasta {{ quantity() }} de energia de exploração e rende até {{ units() }} {{ oreName() }} (+{{ xp() }} XP).
+              Dá para extrair até {{ max() }} pontos agora.
+            </small>
           }
         </div>
       }
 
       @if (deposit().status === 'Depleted') {
         <div class="sh-dep-extract" [attr.data-ui]="'deposit-card-' + deposit().id + '-depleted'">
-          <small class="sh-muted d-block">Depósito esgotado. Leve a ametista à Oficina para lapidar.</small>
-          <button type="button" class="sh-link" [attr.data-ui]="'deposit-card-' + deposit().id + '-workshop-link'" (click)="store.tab.set('workshop')">Ir à Oficina</button>
+          <small class="sh-muted d-block">Depósito esgotado.@if (craftable()) { Leve {{ oreName() }} à Oficina para lapidar.}</small>
+          @if (craftable()) {
+            <button type="button" class="sh-link" [attr.data-ui]="'deposit-card-' + deposit().id + '-workshop-link'" (click)="store.tab.set('workshop')">Ir à Oficina</button>
+          }
         </div>
       }
     </section>
@@ -114,7 +124,10 @@ export class DepositCard {
   protected element = computed(() => elementLook(this.deposit().element));
   protected tier = computed(() => tierLabel(this.deposit()));
   protected status = computed(() => depositStatusLabel(this.deposit().status));
-  protected drops = computed(() => this.dropsText(this.deposit().drops));
+  protected oreName = computed(() => oreLabel(this.deposit().oreType));
+  protected oreColor = computed(() => oreColor(this.deposit().oreType));
+  /** A oficina aceita lapidar este minério (catálogo do servidor). */
+  protected craftable = computed(() => this.store.oreMap().get(this.deposit().oreType)?.craftable ?? false);
 
   protected percent(value: number, total: number): number {
     return total > 0 ? Math.min(100, (value / total) * 100) : 0;
@@ -122,10 +135,6 @@ export class DepositCard {
 
   protected countdown(iso: string): string {
     return formatDuration(Date.parse(iso) - this.store.nowMs());
-  }
-
-  private dropsText(list: Drop[]): string {
-    return list.map((d) => `${Math.round(d.chance * 100)}% ${oreLabel(d.oreType)} (+${d.xp} XP)`).join(' · ') || '—';
   }
 
   // ---- Troca ----
@@ -178,15 +187,20 @@ export class DepositCard {
 
   protected qty = signal(1);
 
-  /** Unidades que dá para extrair agora: estoque, energia de exploração ao vivo e o limite de `times`. */
+  /**
+   * `times` da extração são PONTOS de energia de exploração. O máximo é o menor entre os pontos que esgotam o
+   * estoque (`ceil(estoque / unitsPerEnergy)`), a energia ao vivo e o limite de 100.
+   */
   protected max = computed(() => {
-    const per = this.store.deposits()?.energyPerExtraction ?? 0;
-    const energy = this.store.exploreLive()?.energy ?? 0;
-    const byEnergy = per > 0 ? Math.floor(energy / per) : MAX_TIMES;
-    return Math.max(0, Math.min(this.deposit().stockRemaining, byEnergy, MAX_TIMES));
+    const d = this.deposit();
+    const untilEmpty = d.unitsPerEnergy > 0 ? Math.ceil(d.stockRemaining / d.unitsPerEnergy) : 0;
+    const energy = Math.floor(this.store.exploreLive()?.energy ?? 0);
+    return Math.max(0, Math.min(untilEmpty, energy, MAX_TIMES));
   });
   protected quantity = computed(() => Math.max(1, Math.min(this.qty(), this.max() || 1)));
-  protected cost = computed(() => this.quantity() * (this.store.deposits()?.energyPerExtraction ?? 0));
+  /** Estimativa: o servidor extrai só o que resta no estoque (o último ponto pode render menos). */
+  protected units = computed(() => Math.min(this.deposit().stockRemaining, this.quantity() * this.deposit().unitsPerEnergy));
+  protected xp = computed(() => this.quantity() * this.deposit().xpPerEnergy);
 
   protected step(delta: number): void {
     this.qty.set(Math.max(1, Math.min(this.max(), this.quantity() + delta)));

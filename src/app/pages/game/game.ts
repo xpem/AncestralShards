@@ -50,6 +50,7 @@ export class Game implements OnInit, OnDestroy {
     if (!l) return '';
     const drops = l.drops.map((d) => `+${d.quantity} ${oreLabel(d.oreType)}`).join(', ');
     const extra = l.doubleDrops > 0 ? ` · ${l.doubleDrops} em dobro` : '';
-    return `${l.times}× minerado: ${drops} · +${l.xpGained} XP${extra}${l.levelUp ? ' · Subiu de nível!' : ''}`;
+    const where = l.toCart ? ' (no vagonete)' : '';
+    return `${l.times}× minerado: ${drops}${where} · +${l.xpGained} XP${extra}${l.levelUp ? ' · Subiu de nível!' : ''}`;
   }
 }

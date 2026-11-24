@@ -1,7 +1,7 @@
 export type OreType = 'Quartz' | 'Ruby' | 'Sapphire' | 'Emerald' | 'Amethyst';
 export type OreKind = 'Currency' | 'Gem' | 'Exclusive';
 export type Element = 'Neutral' | 'Fire' | 'Water' | 'Wind';
-export type SkillType = 'DoubleDrop' | 'MineSlots' | 'CartCapacity' | 'Workshop';
+export type SkillType = 'DoubleDrop' | 'MineSlots' | 'CartCapacity' | 'Workshop' | 'Deposits';
 export type ItemStage = 'Raw' | 'Polished' | 'Faceted';
 export type GemType = Exclude<OreType, 'Quartz'>;
 /** Estágios que atacam, defendem e saem da oficina (bruto não conta). */
@@ -10,7 +10,8 @@ export type MissionType =
   | 'FirstPickaxe' | 'Specialization' | 'OperationalExpansion' | 'FirstGem'
   | 'CartTraining' | 'CartUpgrade' | 'OpenWorkshop' | 'FirstPolish' | 'FirstFacet'
   | 'Diversification' | 'Collector' | 'PolishBatch' | 'FullSet' | 'FacetBatch'
-  | 'ThirdMine' | 'FullCart' | 'DoubleLuck' | 'FirstAttack' | 'VaultOpened' | 'Extractor';
+  | 'ThirdMine' | 'FullCart' | 'DoubleLuck' | 'FirstAttack' | 'VaultOpened' | 'Extractor'
+  | 'DoubleDropTraining' | 'CartLevel3' | 'OpenDeposits';
 export type DailyMissionType = 'Login' | 'Energy' | 'Cart' | 'Quartz' | 'Gems' | 'Polish' | 'Facet';
 export type MissionStatus = 'Active' | 'Completed' | 'Claimed';
 
@@ -23,7 +24,17 @@ export interface Player {
   /** Segunda barra: só o contra-ataque e a extração de depósitos a gastam. */
   exploreEnergy: number; exploreMaxEnergy: number; exploreSecondsPerEnergy: number; nextExploreEnergyAtUtc: string | null;
 }
-export interface Skill { type: SkillType; level: number; maxLevel: number; }
+/** O que falta para subir o PRÓXIMO nível de uma skill. `met: false` = bloqueada (subir dá `SkillLocked`, sem gastar o ponto). */
+export interface SkillRequirement {
+  minPlayerLevel: number;
+  requiresSkill: SkillType | null; requiresSkillLevel: number;
+  met: boolean;
+}
+export interface Skill {
+  type: SkillType; level: number; maxLevel: number;
+  /** `null` no nível máximo ou quando a skill não tem pré-requisito. */
+  nextRequirement: SkillRequirement | null;
+}
 export interface MineState {
   mineNumber: number; production: OreType; cartLevel: number; cartCapacity: number; cartAmount: number;
   cartFullAtUtc: string | null; oresPerMinute: number;
@@ -80,20 +91,33 @@ export interface Combat { effectiveness: Effectiveness[]; energyPerCounterPoint:
 // ---- Depósitos (minas finitas) ----
 export type DepositStatus = 'Sealed' | 'Open' | 'Depleted' | 'Expired';
 export interface Deposit {
-  id: number; slot: number;
+  id: number;
+  /** Posição da oferta na semana. A dificuldade NÃO vem do slot: vem do minério (`rarity`). */
+  slot: number;
+  /** Minério que o depósito rende (sorteado; o quartzo nunca aparece). */
+  oreType: OreType;
+  /** Raridade do minério (1 a `maxTier`); define a defesa e o contra-ataque. */
+  rarity: number;
   /** Nome da faixa vindo da configuração (hoje Light, Medium, Hard); não presuma o conjunto. */
   tier: string;
+  /** Elemento do minério. */
   element: Element;
   defenseCurrent: number; defenseMax: number; stockRemaining: number; stockMax: number;
   status: DepositStatus; canRotate: boolean; canAttack: boolean; canMine: boolean;
   /** Contra-ataque por ponto de dano (0,05 = 5%). */
   counterRatio: number;
+  /** Fim da oferta intocada (virada da semana); `null` se já foi atacada. */
   expiresAtUtc: string | null;
-  drops: Drop[];
+  /** Unidades do minério extraídas por PONTO de energia de exploração. */
+  unitsPerEnergy: number;
+  /** XP por ponto de energia de exploração gasto na extração. */
+  xpPerEnergy: number;
 }
 export interface DepositRerolls { used: number; freeLeft: number; nextCost: OreAmount | null; canAfford: boolean; }
 export interface DepositsState {
-  weekStart: string; resetsAtUtc: string; openCount: number; maxOpen: number; energyPerExtraction: number;
+  weekStart: string; resetsAtUtc: string; openCount: number; maxOpen: number;
+  /** Raridade mais alta liberada pela skill Deposits (0 a `maxTier`) e a mais alta do jogo. */
+  unlockedTier: number; maxTier: number;
   rerolls: DepositRerolls; items: Deposit[];
 }
 export interface RotateDepositResult { deposit: Deposit; spent: OreAmount | null; inventory: OreAmount[]; deposits: DepositsState; }
@@ -127,7 +151,7 @@ export const SHARDS_ERROR_CODES = [
   'InvalidGem', 'InvalidStage', 'WorkshopLocked', 'DailyNotFound', 'DailyNotCompleted', 'DailyAlreadyClaimed',
   'ChestNotReady', 'ChestAlreadyClaimed', 'DepositNotFound', 'DepositNotRotatable', 'DepositExpired',
   'DepositDefenseBroken', 'DepositDepleted', 'TooManyOpenDeposits', 'NotEnoughExploreEnergy', 'InvalidAttack',
-  'DepositDefenseActive',
+  'DepositDefenseActive', 'CartFull', 'SkillLocked',
 ] as const;
 export type ShardsErrorCode = (typeof SHARDS_ERROR_CODES)[number];
 
@@ -139,10 +163,17 @@ export interface ShardsState {
   daily: DailyState | null;          // null até resgatar a Missão 1
   ores: OreInfo[];
   combat: Combat;
-  deposits: DepositsState | null;    // null enquanto a skill Workshop está no nível 0
+  deposits: DepositsState | null;    // null enquanto a skill Deposits está no nível 0 (e não há depósito já atacado)
 }
 export interface MineRequest { times?: number; }                       // body opcional
-export interface MineResult { drops: OreAmount[]; doubleDrops: number; xpGained: number; levelUp: boolean; player: Player; missions: Mission[]; dailyMissions: DailyMission[]; }
+export interface MineResult {
+  drops: OreAmount[]; doubleDrops: number; xpGained: number; levelUp: boolean; player: Player; missions: Mission[]; dailyMissions: DailyMission[];
+  /**
+   * Vagonete da mina depois da mineração (docs/PEDIDO-BACKEND-VAGONETE.md). Quando vem, os `drops` foram para o
+   * vagonete e NÃO para o inventário; ausente = servidor antigo, que ainda grava direto no inventário.
+   */
+  cart?: MineState;
+}
 export interface CollectCartResult {
   collected: OreAmount[]; total: number; cart: MineState; inventory: OreAmount[]; missions: Mission[]; dailyMissions: DailyMission[];
 }

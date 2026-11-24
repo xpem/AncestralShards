@@ -1,9 +1,12 @@
 import { Component, inject } from '@angular/core';
-import { Mission, MissionReward, MissionType } from '../../../models/shards.model';
+import { Mission, MissionReward, MissionType, SkillType } from '../../../models/shards.model';
 import { GameStore } from '../../../services/game.store';
+import { requirementText } from '../../../shared/deposit-info';
 import { oreLabel } from '../../../shared/ore-info';
 
-const SKILL_POINT_MISSIONS: MissionType[] = ['CartTraining', 'OpenWorkshop', 'DoubleLuck'];
+const SKILL_POINT_MISSIONS: MissionType[] = ['CartTraining', 'DoubleDropTraining', 'OpenWorkshop', 'OpenDeposits', 'DoubleLuck'];
+/** Missões que pedem um ponto numa skill com pré-requisito (o requisito vem de `skills[].nextRequirement`). */
+const GATED_SKILL: Partial<Record<MissionType, SkillType>> = { OpenWorkshop: 'Workshop', OpenDeposits: 'Deposits' };
 /** Missões que se cumprem na aba de depósitos. */
 const DEPOSIT_MISSIONS: MissionType[] = ['FirstAttack', 'VaultOpened', 'Extractor'];
 
@@ -27,7 +30,9 @@ const DEPOSIT_MISSIONS: MissionType[] = ['FirstAttack', 'VaultOpened', 'Extracto
             <div class="sh-bar thin">
               <div class="sh-bar-fill mission" [style.width.%]="percent(m)"></div>
             </div>
-            @if (needsSkillPoint(m)) {
+            @if (gate(m); as why) {
+              <small class="sh-short d-block" [attr.data-ui]="'mission-' + m.type + '-requirement'"><i class="bi bi-lock-fill"></i> {{ why }}</small>
+            } @else if (needsSkillPoint(m)) {
               <small class="sh-muted d-block">Suba de nível para ganhar um ponto de habilidade</small>
             }
             @if (goesToDeposits(m)) {
@@ -55,6 +60,15 @@ export class MissionList {
   /** Missões que exigem gastar um ponto de habilidade. */
   protected needsSkillPoint(m: Mission): boolean {
     return m.status === 'Active' && SKILL_POINT_MISSIONS.includes(m.type) && this.store.player()?.skillPoints === 0;
+  }
+
+  /** Pré-requisito ainda não atendido da skill que a missão pede (nível do jogador ou outra skill). */
+  protected gate(m: Mission): string | null {
+    const type = GATED_SKILL[m.type];
+    if (m.status !== 'Active' || !type) return null;
+    const req = this.store.skill(type)?.nextRequirement;
+    if (!req || req.met) return null;
+    return `Exige ${requirementText(req)}.`;
   }
 
   protected goesToDeposits(m: Mission): boolean {

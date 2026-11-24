@@ -8,6 +8,7 @@ const MESSAGES: Record<ShardsErrorCode, string> = {
   MineNotFound: 'Você ainda não tem esta mina.',
   NotEnoughEnergy: 'Energia insuficiente.',
   CartEmpty: 'O vagonete está vazio.',
+  CartFull: 'O vagonete está cheio. Colete antes de minerar.',
   NoSkillPoints: 'Sem pontos de habilidade.',
   SkillMaxLevel: 'A habilidade já está no máximo.',
   InvalidSkill: 'Habilidade inválida.',
@@ -40,6 +41,7 @@ const MESSAGES: Record<ShardsErrorCode, string> = {
   NotEnoughExploreEnergy: 'Energia de exploração insuficiente. Leve gemas de defesa ou espere regenerar.',
   InvalidAttack: 'Ataque inválido: escolha gemas atacantes que causem dano.',
   DepositDefenseActive: 'Derrube a defesa do depósito antes de extrair.',
+  SkillLocked: 'Esta habilidade ainda não está liberada: falta nível do jogador ou outra habilidade. O ponto não foi gasto.',
 };
 
 const isKnownCode = (code: string): code is ShardsErrorCode => (SHARDS_ERROR_CODES as readonly string[]).includes(code);

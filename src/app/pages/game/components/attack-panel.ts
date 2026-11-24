@@ -41,7 +41,8 @@ interface Row {
       </div>
 
       <p class="sh-muted mt-2 mb-1" [attr.data-ui]="'attack-panel-' + deposit().id + '-summary'">
-        <i class="bi" [class]="depositLook().icon" [style.color]="depositLook().color"></i>
+        <span class="sh-gem" [style.background]="color(deposit().oreType)"></span>
+        {{ label(deposit().oreType) }} · <i class="bi" [class]="depositLook().icon" [style.color]="depositLook().color"></i>
         {{ depositLook().label }} · {{ tier() }} · {{ status() }} · defesa {{ deposit().defenseCurrent }}/{{ deposit().defenseMax }}
       </p>
       <small class="sh-muted d-block">
