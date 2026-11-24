@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { OreAmount } from '../../../models/shards.model';
 import { GameStore, formatOres } from '../../../services/game.store';
+import { requirementText } from '../../../shared/deposit-info';
 import { formatDuration } from '../../../shared/format';
 import { elementLook, formatMultiplier } from '../../../shared/ore-info';
 import { AttackPanel } from './attack-panel';
@@ -31,6 +32,12 @@ import { ExploreBar } from './explore-bar';
               {{ d.rerolls.freeLeft }} {{ d.rerolls.freeLeft === 1 ? 'troca grátis' : 'trocas grátis' }} nesta semana
             } @else if (d.rerolls.nextCost; as cost) {
               Próxima troca: {{ formatCost(cost) }}
+            }
+          </p>
+          <p class="sh-muted mb-1" data-ui="deposits-tiers">
+            Raridades liberadas: {{ d.unlockedTier }}/{{ d.maxTier }}
+            @if (nextTierHint(); as hint) {
+              · <span data-ui="deposits-tiers-hint">{{ hint }}</span>
             }
           </p>
           <button type="button" class="sh-link" data-ui="deposits-guide-btn" [attr.aria-expanded]="showGuide()" (click)="showGuide.set(!showGuide())">
@@ -99,6 +106,18 @@ export class DepositsPanel implements OnInit {
   );
 
   protected formatCost = (cost: OreAmount): string => formatOres([cost]);
+
+  /** Como liberar a próxima raridade (o pré-requisito vem da skill `Deposits`, no servidor). */
+  protected nextTierHint = computed(() => {
+    const d = this.store.deposits();
+    const skill = this.store.skill('Deposits');
+    if (!d || !skill || d.unlockedTier >= d.maxTier) return '';
+    const req = skill.nextRequirement;
+    if (!req) return `a habilidade Depósitos nível ${skill.level + 1} libera a raridade ${d.unlockedTier + 1}`;
+    const need = requirementText(req);
+    if (!req.met) return `para a raridade ${d.unlockedTier + 1}: Depósitos nível ${skill.level + 1} exige ${need}`;
+    return `use um ponto em Depósitos para liberar a raridade ${d.unlockedTier + 1}`;
+  });
 
   ngOnInit(): void {
     void this.store.loadFullInventory();

@@ -9,7 +9,7 @@ import {
 import { ShardsApi } from './shards-api';
 import { oreLabel, stageLabel } from '../shared/ore-info';
 export { stageLabel };
-import { describeError } from './shards-errors';
+import { describeError, messageForCode } from './shards-errors';
 
 /** Única constante do front: limite de `times` por requisição (contrato, seção 8). */
 export const MAX_TIMES = 100;
@@ -39,6 +39,8 @@ export interface MineSummary {
   xpGained: number;
   levelUp: boolean;
   times: number;
+  /** Os `drops` foram para o vagonete (a coleta os passa ao inventário). */
+  toCart: boolean;
 }
 
 export interface EnergyLive {
@@ -111,6 +113,8 @@ export class GameStore {
   // ---- Mineração em lote ----
   private readonly pending = signal<Record<number, number>>({});
   private readonly inFlight = signal(0);
+  /** Minerações em voo por mina (o vagonete só reflete o resultado quando a resposta chega). */
+  private readonly flying = signal<Record<number, number>>({});
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ---- Controle interno ----
@@ -159,6 +163,11 @@ export class GameStore {
 
   readonly oreMap = computed(() => new Map(this.ores().map((o) => [o.oreType, o] as const)));
 
+  /** A skill pelo tipo (`undefined` se o servidor ainda não a lista). */
+  skill(type: SkillType): Skill | undefined {
+    return this.skills().find((s) => s.type === type);
+  }
+
   /** Quantas gemas de um estágio o jogador tem (inventário completo, por estágio). */
   gemQuantity(ore: OreType, stage: ItemStage): number {
     return this.fullInventory().find((i) => i.oreType === ore && i.stage === stage)?.quantity ?? 0;
@@ -172,7 +181,15 @@ export class GameStore {
   /** Minério estimado no vagonete agora (o servidor arredonda para baixo: mostre "≈"). */
   cartNow(mine: MineView): number {
     const grown = ((this.nowMs() - mine.asOfMs) / 60000) * mine.oresPerMinute;
-    return Math.min(mine.cartCapacity, Math.max(0, Math.floor(mine.cartAmount + grown)));
+    // O drop em dobro pode passar da capacidade; nunca esconda o que o servidor já informou.
+    const ceiling = Math.max(mine.cartCapacity, mine.cartAmount);
+    return Math.min(ceiling, Math.max(0, Math.floor(mine.cartAmount + grown)));
+  }
+
+  /** Quantas minerações ainda cabem no vagonete (desconta as que já estão na fila ou em voo para esta mina). */
+  cartSpace(mine: MineView): number {
+    const reserved = (this.pending()[mine.mineNumber] ?? 0) + (this.flying()[mine.mineNumber] ?? 0);
+    return Math.max(0, mine.cartCapacity - this.cartNow(mine) - reserved);
   }
 
   // ---- Ciclo de vida ----
@@ -219,9 +236,13 @@ export class GameStore {
 
   /** Pede `times` minerações. Os cliques se juntam e saem num único POST. Devolve quantas foram aceitas. */
   mine(mineNumber: number, times = 1): number {
-    const accepted = Math.min(times, this.availableEnergy());
+    const mine = this.mines().find((m) => m.mineNumber === mineNumber);
+    if (!mine) return 0;
+    // O que se minera vai para o vagonete: só cabe o que tem espaço (coletar libera).
+    const space = this.cartSpace(mine);
+    const accepted = Math.min(times, this.availableEnergy(), space);
     if (accepted <= 0) {
-      this.notify('error', 'Energia insuficiente.');
+      this.notify('error', space <= 0 ? messageForCode('CartFull') : 'Energia insuficiente.');
       return 0;
     }
     this.pending.update((p) => ({ ...p, [mineNumber]: (p[mineNumber] ?? 0) + accepted }));
@@ -247,8 +268,9 @@ export class GameStore {
     if (total === 0) return;
     this.pending.set({});
     this.inFlight.set(total);
+    this.flying.set(rest);
 
-    const summary: MineSummary = { id: ++this.seq, drops: [], doubleDrops: 0, xpGained: 0, levelUp: false, times: 0 };
+    const summary: MineSummary = { id: ++this.seq, drops: [], doubleDrops: 0, xpGained: 0, levelUp: false, times: 0, toCart: false };
     let failure: unknown = null;
     let completed: string | null = null;
 
@@ -259,7 +281,13 @@ export class GameStore {
         try {
           const res = await this.withRetry(() => firstValueFrom(this.api.mine(mineNumber, times)));
           this.player.set(res.player);
-          this.addToInventory(res.drops);
+          if (res.cart) {
+            // Os minérios foram para o vagonete; o inventário só muda na coleta.
+            this.applyCart(res.cart);
+            summary.toCart = true;
+          } else {
+            this.addToInventory(res.drops);
+          }
           completed = this.mergeBoth(res.missions, res.dailyMissions) ?? completed;
           summary.drops = sumOres(summary.drops, res.drops);
           summary.doubleDrops += res.doubleDrops;
@@ -267,6 +295,7 @@ export class GameStore {
           summary.levelUp ||= res.levelUp;
           summary.times += times;
           rest[mineNumber] -= times;
+          this.flying.update((f) => ({ ...f, [mineNumber]: rest[mineNumber] }));
           this.inFlight.update((n) => n - times);
         } catch (e) {
           failure = e;
@@ -276,6 +305,7 @@ export class GameStore {
     }
 
     this.inFlight.set(0);
+    this.flying.set({});
     if (summary.times > 0) this.lastMine.set(summary);
     if (summary.levelUp) this.notify('success', 'Você subiu de nível!');
     this.announceCompleted(completed);
@@ -547,6 +577,12 @@ export class GameStore {
     this.fullInventory.update((items) =>
       [...items.filter((i) => i.stage !== 'Raw'), ...rawItems].sort((a, b) => rank(a.oreType) - rank(b.oreType) || stages.indexOf(a.stage) - stages.indexOf(b.stage)),
     );
+  }
+
+  /** Troca o vagonete da mina pelo que o servidor devolveu (`cartAmount` vale agora). */
+  private applyCart(cart: MineState): void {
+    const asOfMs = this.nowMs();
+    this.mines.update((list) => list.map((m) => (m.mineNumber === cart.mineNumber ? { ...cart, asOfMs } : m)));
   }
 
   private addToInventory(drops: OreAmount[]): void {

@@ -86,7 +86,8 @@ Cria o jogador no primeiro acesso (nível 0, energia 100/100, Mina 1, Missão 1)
 - `productions[].canAfford` também considera só o inventário (não o que o vagonete entregaria na troca).
 - `cartUpgrades[]`: uma entrada por mina. `next` é `null` no nível máximo; senão `{ level, capacity, cost, canAfford, skillAllows }`.
   `canAfford` olha o inventário atual; `skillAllows` diz se a skill `CartCapacity` já permite esse nível.
-- `cartAmount` é a quantidade **no momento da resposta**; `cartFullAtUtc` é quando enche (`null` se a mina não produz).
+- `cartAmount` é a quantidade **no momento da resposta** (minério guardado da mineração ativa + produção automática); `cartFullAtUtc` é
+  quando enche (`null` se a mina não produz). A produção automática só cresce até `capacidade − guardado`.
 
 ### 3.2 `POST /Shards/mines/{mineNumber}/mine` — mineração ativa
 Body **opcional**: `{ "times": 10 }` (1 a 100; padrão 1). Gasta 1 de energia por mineração.
@@ -96,15 +97,22 @@ Body **opcional**: `{ "times": 10 }` (1 a 100; padrão 1). Gasta 1 de energia po
   "doubleDrops": 1, "xpGained": 28, "levelUp": true,
   "player": { "level": 1, "experience": 28, "experienceToNextLevel": 17, "skillPoints": 1, "energy": 90, "maxEnergy": 100,
               "secondsPerEnergy": 216, "nextEnergyAtUtc": "2026-10-13T00:09:24Z" },
+  "cart": { "mineNumber": 1, "production": "Sapphire", "cartLevel": 0, "cartCapacity": 100, "cartAmount": 11, "cartFullAtUtc": "...", "oresPerMinute": 0.33 },
   "missions": [ { "type": "FirstPickaxe", "...": "...", "status": "Completed", "progress": 10, "goal": 10 } ] }
 ```
 
 - Exemplo para `times: 10` numa mina em Safira: 10 minerações, das quais 1 rendeu minério extra (`doubleDrops`), por isso são 11 minérios nos `drops`.
   O XP é o do drop, uma vez por mineração (9 safiras × 3 + 1 quartzo × 1 = 28).
-- **Não devolve o inventário**: some `drops` ao inventário local.
+- **Os `drops` vão para o vagonete, não para o inventário** (o inventário não muda e não vem na resposta). `cart` é o vagonete da mina
+  depois da mineração (`cartAmount` já com os drops). O jogador só recebe o minério no inventário ao coletar (`collect-cart`).
+- Cada mineração ocupa 1 espaço do vagonete: espaço livre = `cartCapacity − cartAmount` (a produção automática e a ativa dividem o mesmo
+  teto). `times` maior que o espaço → `CartFull`, sem gastar energia nem gravar nada. O extra do drop em dobro não ocupa espaço, então o
+  `cartAmount` pode passar da capacidade; nesse caso não cabe mais nenhuma mineração até coletar.
+- Energia, XP, nível, missão `FirstPickaxe` e diária `Energy` contam na mineração. Minério obtido (diárias `Quartz`/`Gems`, missão
+  `Collector`) conta na **coleta**, quando entra no inventário.
 - `missions` traz só as que **mudaram** nesta ação (mescle por `type`).
 - `doubleDrops` = quantas minerações renderam minério extra (skill DoubleDrop). Os `drops` já incluem o extra.
-- Erros: `InvalidTimes`, `NotEnoughEnergy`, `MineNotFound`, `PlayerNotFound`.
+- Erros: `InvalidTimes`, `NotEnoughEnergy`, `CartFull`, `MineNotFound`, `PlayerNotFound`.
 
 ### 3.3 `POST /Shards/mines/{mineNumber}/collect-cart` — esvaziar o vagonete
 Sem body.
@@ -115,6 +123,8 @@ Sem body.
   "inventory": [ { "oreType": "Quartz", "quantity": 45 } ] }
 ```
 - `inventory` é o inventário **completo** atualizado. Sem XP, sem drop duplo. Erros: `CartEmpty`, `MineNotFound`.
+- Entrega as duas partes do vagonete: o minério guardado da mineração ativa (por tipo, sem sortear de novo) e a produção automática
+  (sorteada com a produção da mina). Zera as duas; `collected`/`total` somam as duas. `production` e `upgrade-cart` esvaziam o vagonete do mesmo jeito.
 
 ### 3.4 `POST /Shards/mines/{mineNumber}/production` — tipo de produção da mina
 Body: `{ "focus": "Sapphire" }` (`Quartz`, `Sapphire`, `Ruby` ou `Emerald`).
@@ -203,6 +213,7 @@ Mesclar missões: para cada missão da resposta, substitua a de mesmo `type`; se
 | `MissionNotFound` | 400 | Missão inexistente ou ainda não liberada | "Missão não encontrada." |
 | `MissionAlreadyClaimed` | 400 | Recompensa já resgatada | "Recompensa já resgatada." |
 | `InvalidTimes` | 400 | `times` fora de 1–100 | "Quantidade inválida (1 a 100)." |
+| `CartFull` | 400 | `times` maior que o espaço livre do vagonete | "O vagonete está cheio. Colete antes de minerar." |
 | `InvalidProduction` | 400 | Tipo de produção inexistente | "Tipo de produção inválido." |
 | `SameProduction` | 400 | A mina já produz esse minério | "A mina já produz este minério." |
 | `ConcurrencyConflict` | **409** | Duas ações concorrentes; **repita** a ação uma vez | "Tente novamente." |
@@ -301,3 +312,17 @@ Detalhes e exemplos de JSON: `PLANO-FRONT-OFICINA.md` (seções 12 e 13, no back
 - `chest.reward` é o do **próximo** baú; `canClaim` só com as 3 diárias `Claimed`; o último dia do ciclo (`cycleDays`) paga o dobro.
 - Ao passar de `resetsAtUtc` refazer `GET /state` (o servidor só cria o dia novo nele).
 - Erros (400): `DailyNotFound`, `DailyNotCompleted`, `DailyAlreadyClaimed`, `ChestNotReady`, `ChestAlreadyClaimed`.
+
+## 11. Atualização — minas finitas (depósitos), skill Deposits e pré-requisitos
+
+Contratos no backend (`Shards/`), em ordem: `PLANO-FRONT-OFICINA.md`, `PLANO-FRONT-CATALOGO.md`, `PLANO-FRONT-DEPOSITOS.md`, `PLANO-FRONT-ATAQUE.md`, `PLANO-FRONT-EXTRACAO.md`. **Onde divergirem deste documento, valem eles.** Os tipos estão em `src/app/models/shards.model.ts`.
+
+- `state` ganhou `ores[]`, `combat` (`effectiveness[]` e `energyPerCounterPoint`; o formato antigo com `elementCycle` foi removido), `deposits` e, em `player`, os 4 campos da energia de exploração.
+- `SkillType` ganhou `Deposits` (níveis 1 a 3: cada nível libera uma raridade). Todo `skills[]` traz `nextRequirement { minPlayerLevel, requiresSkill, requiresSkillLevel, met }` (`null` no nível máximo ou sem pré-requisito). `met: false` = cadeado; subir mesmo assim dá `400 SkillLocked` e não gasta o ponto.
+- `state.deposits` é `null` com a skill em 0 (esconder a aba), salvo se já houver depósito atacado. Cada depósito rende um **minério sorteado** (`oreType`, `rarity`, `tier`, `element`, `unitsPerEnergy`, `xpPerEnergy`); a dificuldade vem do minério, não do `slot`. O bloco traz `unlockedTier`/`maxTier`. Semana vira no sábado (`resetsAtUtc`).
+- Rotas: `POST /Shards/deposits/{id}/rotate`, `.../attack` (`preview: true` simula e nunca dá erro: devolve `canConfirm`/`blocker`) e `.../mine` (`times` = **pontos de energia de exploração**, 1 a 100; cada ponto rende `unitsPerEnergy` unidades). As respostas já trazem `deposit`, `deposits`, `inventory` e `player` atualizados.
+- `inventory` tem formato diferente por rota: `rotate` e `mine` devolvem a lista bruta (`OreAmount[]`); `attack` devolve `{ items }` com todos os estágios.
+- Missões novas: `DoubleDropTraining`, `CartLevel3`, `OpenDeposits` (e `FirstAttack`, `VaultOpened`, `Extractor`). `OpenWorkshop` e `OpenDeposits` exigem nível do jogador (ver `nextRequirement` da skill).
+- `OreType` ganhou `Amethyst`, lapidável (4ª gema em `workshop[].gems`).
+- Erros novos (400): `SkillLocked`, `DepositNotFound`, `DepositNotRotatable`, `DepositExpired`, `DepositDefenseBroken`, `DepositDepleted`, `TooManyOpenDeposits`, `NotEnoughExploreEnergy`, `InvalidAttack`, `DepositDefenseActive`. Todos mapeados em `shards-errors.ts`.
+- **Nada de balanceamento no front:** teto e ritmo da energia de exploração, custos de troca, razões de contra-ataque, ataque/defesa das gemas, multiplicadores, `unitsPerEnergy` e pré-requisitos vêm do `state`.
